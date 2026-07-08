@@ -149,10 +149,12 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite }: { note: Note;
       onClick={(event) => event.stopPropagation()}
     >
       <div className="w-48 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-lg">
-        <button type="button" onClick={handleFavoriteClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <Star className="size-4" fill={note.isFavorite ? 'currentColor' : 'none'} />
-          <span>{note.isFavorite ? '取消收藏' : '添加收藏'}</span>
-        </button>
+        {onToggleFavorite ? (
+          <button type="button" onClick={handleFavoriteClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+            <Star className="size-4" fill={note.isFavorite ? 'currentColor' : 'none'} />
+            <span>{note.isFavorite ? '取消收藏' : '添加收藏'}</span>
+          </button>
+        ) : null}
         <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <FolderInput className="size-4" />
           <span>移动到文件夹</span>

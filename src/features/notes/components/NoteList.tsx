@@ -157,8 +157,8 @@ function NoteListRow({ note, onSelect, onToggleFavorite }: { note: Note; onSelec
         <p className="max-w-2xl truncate font-body-md text-body-md text-on-surface-variant">{note.excerpt || note.content || '开始输入内容...'}</p>
       </div>
 
-      <div className="ml-0 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 lg:ml-4">
-        <button type="button" onClick={handleFavoriteClick} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-primary">
+      <div className="ml-0 flex shrink-0 items-center gap-1 opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 lg:ml-4">
+        <button type="button" onClick={handleFavoriteClick} aria-label={note.isFavorite ? '取消收藏' : '添加收藏'} aria-pressed={note.isFavorite} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-primary">
           <Star className="size-5" fill={note.isFavorite ? 'currentColor' : 'none'} />
         </button>
         <button type="button" onClick={(event) => event.stopPropagation()} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-error">
