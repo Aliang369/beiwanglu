@@ -91,7 +91,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
       ) : viewMode === 'list' ? (
         <div className="space-y-4 pb-24">
           {notes.map((note) => (
-            <NoteListRow key={note.id} note={note} onSelect={onSelectNote} onToggleFavorite={onToggleFavorite} />
+            <NoteListRow key={note.id} note={note} onSelect={onSelectNote} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
           ))}
           <button
             type="button"
@@ -129,7 +129,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   )
 }
 
-function NoteListRow({ note, onSelect, onToggleFavorite }: { note: Note; onSelect?: (noteId: string) => void; onToggleFavorite?: (noteId: string) => void }) {
+function NoteListRow({ note, onSelect, onToggleFavorite, onMoveToTrash }: { note: Note; onSelect?: (noteId: string) => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void }) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -140,6 +140,11 @@ function NoteListRow({ note, onSelect, onToggleFavorite }: { note: Note; onSelec
   function handleFavoriteClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggleFavorite?.(note.id)
+  }
+
+  function handleMoveToTrashClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onMoveToTrash?.(note.id)
   }
 
   return (
@@ -163,7 +168,7 @@ function NoteListRow({ note, onSelect, onToggleFavorite }: { note: Note; onSelec
         <button type="button" onClick={handleFavoriteClick} aria-label={note.isFavorite ? '取消收藏' : '添加收藏'} aria-pressed={note.isFavorite} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-primary">
           <Star className="size-5" fill={note.isFavorite ? 'currentColor' : 'none'} />
         </button>
-        <button type="button" onClick={(event) => event.stopPropagation()} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-error">
+        <button type="button" onClick={handleMoveToTrashClick} aria-label="删除" className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-error">
           <Trash2 className="size-5" />
         </button>
         <NoteListRowMoreControl open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} />
