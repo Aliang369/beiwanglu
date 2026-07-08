@@ -80,7 +80,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
           <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
         </div>
       </article>
-      <CardMoreControl note={note} open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onToggleFavorite={onToggleFavorite} />
+      <CardMoreControl note={note} open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
     </div>
   )
 }
