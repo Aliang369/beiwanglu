@@ -19,9 +19,10 @@ interface NoteListProps {
   onOpenHelp?: () => void
   onSelectNote?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
+  onMoveToTrash?: (noteId: string) => void
 }
 
-export function NoteList({ notes, totalCount, query = '', tagId = null, onCreateNote, onClearSearch, onClearTagFilter, onOpenHelp, onSelectNote, onToggleFavorite }: NoteListProps) {
+export function NoteList({ notes, totalCount, query = '', tagId = null, onCreateNote, onClearSearch, onClearTagFilter, onOpenHelp, onSelectNote, onToggleFavorite, onMoveToTrash }: NoteListProps) {
   const [viewMode, setViewMode] = useState<NotesViewMode>('grid')
   const latestUpdatedAt = notes[0]?.updatedAt ? formatUpdatedAt(notes[0].updatedAt) : '暂无更新'
   const trimmedQuery = query.trim()
@@ -111,6 +112,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
               visual={note.id === 'design-inspo'}
               onSelect={onSelectNote}
               onToggleFavorite={onToggleFavorite}
+              onMoveToTrash={onMoveToTrash}
             />
           ))}
           <button

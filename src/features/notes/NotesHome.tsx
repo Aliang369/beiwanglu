@@ -197,6 +197,7 @@ export function NotesHome() {
               onOpenHelp={handleHelpClick}
               onSelectNote={setEditingNoteId}
               onToggleFavorite={(noteId) => void toggleFavorite(noteId)}
+              onMoveToTrash={(noteId) => void moveToTrash(noteId)}
             />
           </main>
         )}

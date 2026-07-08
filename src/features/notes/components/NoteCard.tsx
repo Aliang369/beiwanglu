@@ -9,9 +9,10 @@ interface NoteCardProps {
   visual?: boolean
   onSelect?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
+  onMoveToTrash?: (noteId: string) => void
 }
 
-export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite }: NoteCardProps) {
+export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash }: NoteCardProps) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -43,7 +44,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
             </div>
           </div>
         </article>
-        <CardMoreControl note={note} open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onToggleFavorite={onToggleFavorite} />
+        <CardMoreControl note={note} open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
       </div>
     )
   }
@@ -96,7 +97,7 @@ function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
   )
 }
 
-function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void }) {
+function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void }) {
   function handleToggle(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggle(!open)
@@ -110,7 +111,7 @@ function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite }: { 
       onMouseLeave={() => onToggle(false)}
     >
       <CardMoreButton open={open} onClick={handleToggle} />
-      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} />
+      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
     </div>
   )
 }
@@ -129,7 +130,7 @@ function CardMoreButton({ open, onClick }: { open: boolean; onClick: (event: Mou
   )
 }
 
-function CardActionMenu({ note, open, onClose, onToggleFavorite }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void }) {
+function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void }) {
   function handleItemClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onClose()
@@ -138,6 +139,12 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite }: { note: Note;
   function handleFavoriteClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggleFavorite?.(note.id)
+    onClose()
+  }
+
+  function handleMoveToTrashClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onMoveToTrash?.(note.id)
     onClose()
   }
 
@@ -168,7 +175,7 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite }: { note: Note;
           <span>复制笔记</span>
         </button>
         <div className="my-1 border-t border-outline-variant/30" />
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-error transition-colors hover:bg-error-container/30">
+        <button type="button" onClick={handleMoveToTrashClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-error transition-colors hover:bg-error-container/30">
           <Trash2 className="size-4" />
           <span>删除</span>
         </button>
