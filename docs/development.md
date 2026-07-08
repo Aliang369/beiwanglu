@@ -1,0 +1,178 @@
+# 开发与排错指南
+
+本文档说明 `灵感笔记` 的本地开发、构建、预览和常见问题处理方式。
+
+## 环境要求
+
+- Node.js：建议使用当前 LTS 版本或更高版本。
+- npm：随 Node.js 安装。
+- Rust：运行 `npm run tauri:dev` 或 `npm run tauri:build` 时需要。
+- Tauri 2 系统依赖：桌面端开发和打包需要按目标系统安装对应依赖。
+
+如果只启动 Web 前端，通常只需要 Node.js 和 npm。
+
+## 安装依赖
+
+```bash
+npm install
+```
+
+项目使用 `package-lock.json` 锁定依赖版本，默认使用 npm 即可。
+
+## 启动 Web 开发服务
+
+```bash
+npm run dev
+```
+
+默认地址：
+
+```text
+http://localhost:5173
+```
+
+如需显式绑定本机地址，可以运行：
+
+```bash
+npm run dev -- --host 127.0.0.1
+```
+
+## 端口说明
+
+`vite.config.ts` 中配置了：
+
+```ts
+server: {
+  port: 5173,
+  strictPort: true,
+}
+```
+
+这表示：
+
+- 开发服务固定使用 `5173` 端口。
+- 如果端口被占用，Vite 会启动失败。
+- Vite 不会自动切换到 `5174` 或其他端口。
+
+处理方式：
+
+1. 关闭已经运行的开发服务。
+2. 找到并结束占用 `5173` 的进程。
+3. 如确实需要更换端口，修改 `vite.config.ts` 和 `src-tauri/tauri.conf.json` 中的 `devUrl`，保持两处一致。
+
+## 启动 Tauri 桌面开发环境
+
+```bash
+npm run tauri:dev
+```
+
+Tauri 配置中的 `beforeDevCommand` 会先执行：
+
+```bash
+npm run dev
+```
+
+然后 Tauri 使用：
+
+```text
+http://localhost:5173
+```
+
+作为桌面窗口加载地址。
+
+如果 Web 服务端口启动失败，Tauri 桌面窗口也无法正常加载。
+
+## 构建 Web 产物
+
+```bash
+npm run build
+```
+
+该命令执行：
+
+```bash
+tsc -b && vite build
+```
+
+输出目录：
+
+```text
+dist/
+```
+
+## 预览构建产物
+
+```bash
+npm run preview
+```
+
+该命令用于本地预览 `vite build` 后的产物，不等同于开发服务。
+
+## 构建桌面应用
+
+```bash
+npm run tauri:build
+```
+
+构建前会执行 `npm run build`，然后由 Tauri 读取 `dist/` 生成桌面应用包。不同操作系统的系统依赖、签名、公证、安装包格式可能不同，详见 [`tauri.md`](tauri.md)。
+
+## 本地数据重置
+
+Web 端笔记数据存储在浏览器 `localStorage`：
+
+```text
+beiwanglu.notes.v1
+```
+
+需要重置示例数据时，在浏览器开发者工具控制台执行：
+
+```js
+localStorage.removeItem('beiwanglu.notes.v1')
+```
+
+然后刷新页面，应用会重新写入 `src/shared/data/mockNotes.ts` 中的 mock 数据。
+
+## 质量检查
+
+提交前建议运行：
+
+```bash
+npm run lint
+npm run build
+```
+
+当前项目尚未配置自动化测试脚本。如果引入测试，建议优先覆盖：
+
+- `src/shared/notes/noteDomain.ts`
+- `src/shared/notes/noteSelectors.ts`
+- `src/shared/data/webNotesRepository.ts`
+- 创建、编辑、收藏、搜索、移入回收站等核心交互。
+
+## 常见问题
+
+### 端口 5173 被占用
+
+现象：`npm run dev` 失败，并提示端口不可用。
+
+处理：关闭旧的 Vite 服务或结束占用 `5173` 的进程。不要只改 Vite 端口而忘记同步修改 `src-tauri/tauri.conf.json` 的 `devUrl`。
+
+### Tauri 启动失败
+
+常见原因：
+
+- Rust 未安装。
+- Tauri 系统依赖缺失。
+- Web 开发服务没有成功启动。
+- `src-tauri/tauri.conf.json` 中的 `devUrl` 与 Vite 实际地址不一致。
+
+### 页面数据看起来不对
+
+可能是本地 `localStorage` 中已有旧数据。可以清理 `beiwanglu.notes.v1` 后刷新页面。
+
+### Google Fonts 加载慢或失败
+
+`index.html` 当前加载 Google Fonts。网络受限时，字体可能回退到系统字体，但通常不影响应用功能。若需要离线或内网可用，可以后续改成本地字体资源。
+
+### 账号、消息、导出、历史功能没有真实效果
+
+这些模块当前属于前端原型或 mock 数据驱动功能。具体状态见 [`feature-status.md`](feature-status.md)。
