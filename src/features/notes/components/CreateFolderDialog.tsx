@@ -1,5 +1,4 @@
-import { FolderPlus, X } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 interface CreateFolderDialogProps {
   onClose: () => void
@@ -11,6 +10,10 @@ export function CreateFolderDialog({ onClose, onCreate, existingNames = [] }: Cr
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const titleId = useId()
+  const errorId = useId()
+  const trimmed = name.trim()
+  const remaining = 40 - name.length
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -19,6 +22,7 @@ export function CreateFolderDialog({ onClose, onCreate, existingNames = [] }: Cr
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        event.preventDefault()
         onClose()
       }
     }
@@ -29,7 +33,6 @@ export function CreateFolderDialog({ onClose, onCreate, existingNames = [] }: Cr
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const trimmed = name.trim()
 
     if (!trimmed) {
       setError('请输入文件夹名称。')
@@ -47,31 +50,23 @@ export function CreateFolderDialog({ onClose, onCreate, existingNames = [] }: Cr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-inverse-surface/35 px-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-inverse-surface/40 px-4 backdrop-blur-sm" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="create-folder-title"
-        className="w-full max-w-md overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-[0_12px_32px_rgba(0,50,100,0.08)]"
+        aria-labelledby={titleId}
+        className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-outline-variant/25 bg-surface-container-lowest shadow-[0_16px_40px_rgba(17,28,45,0.12)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-outline-variant/20 px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-container text-on-primary">
-              <FolderPlus className="size-5" />
-            </div>
-            <div>
-              <h2 id="create-folder-title" className="font-headline-sm text-headline-sm text-on-surface">新建文件夹</h2>
-              <p className="mt-0.5 font-label-sm text-label-sm text-on-surface-variant">为您的笔记创建一个新的分类。</p>
-            </div>
-          </div>
-          <button type="button" onClick={onClose} aria-label="关闭" className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface">
-            <X className="size-5" />
-          </button>
-        </div>
-
         <form onSubmit={handleSubmit}>
-          <div className="px-6 py-6">
+          <div className="px-6 pb-2 pt-6">
+            <h2 id={titleId} className="font-headline-sm text-headline-sm text-on-surface">
+              新建文件夹
+            </h2>
+            <p className="mt-1 font-body-md text-body-md text-on-surface-variant">给分类起一个清晰的名字，方便之后整理笔记。</p>
+          </div>
+
+          <div className="px-6 py-4">
             <label htmlFor="folder-name" className="mb-2 block font-label-md text-label-md text-on-surface">
               文件夹名称
             </label>
@@ -89,24 +84,36 @@ export function CreateFolderDialog({ onClose, onCreate, existingNames = [] }: Cr
               maxLength={40}
               placeholder="例如：工作项目"
               aria-invalid={error ? true : undefined}
-              className={`w-full rounded-lg border bg-surface px-4 py-2.5 font-body-md text-body-md text-on-surface transition-colors placeholder:text-outline focus:outline-none focus:ring-2 ${
-                error ? 'border-error focus:ring-error/40' : 'border-outline-variant focus:border-primary focus:ring-primary/30'
+              aria-describedby={error ? errorId : undefined}
+              className={`w-full rounded-xl border bg-surface px-4 py-3 font-body-md text-body-md text-on-surface transition-all duration-200 placeholder:text-outline focus:outline-none focus:ring-2 ${
+                error
+                  ? 'border-error focus:border-error focus:ring-error/25'
+                  : 'border-outline-variant/70 focus:border-primary focus:ring-primary/25'
               }`}
             />
-            {error ? <p className="mt-2 font-label-sm text-label-sm text-error">{error}</p> : null}
+            <div className="mt-2 flex items-start justify-between gap-3">
+              {error ? (
+                <p id={errorId} role="alert" className="font-label-sm text-label-sm text-error">
+                  {error}
+                </p>
+              ) : (
+                <p className="font-label-sm text-label-sm text-on-surface-variant">最多 40 个字符</p>
+              )}
+              <span className={`shrink-0 font-label-sm text-label-sm ${remaining <= 5 ? 'text-error' : 'text-outline'}`}>{remaining}</span>
+            </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-outline-variant/20 bg-surface-container-low px-6 py-4">
+          <div className="flex items-center justify-end gap-3 px-6 pb-6 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-outline-variant px-5 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-high"
+              className="min-h-11 rounded-full border border-outline-variant/70 bg-transparent px-5 py-2.5 font-label-md text-label-md text-on-surface transition-colors duration-200 hover:border-outline hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
               取消
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-primary px-5 py-2 font-label-md text-label-md text-on-primary shadow-sm transition-colors hover:bg-primary-fixed-variant"
+              className="min-h-11 min-w-[104px] rounded-full bg-primary px-5 py-2.5 font-label-md text-label-md text-on-primary shadow-sm transition-all duration-200 hover:bg-primary-container hover:text-on-primary-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]"
             >
               创建
             </button>
