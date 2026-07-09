@@ -174,6 +174,7 @@ function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMo
       key: 'favorite',
       label: note.isFavorite ? '取消收藏' : '添加收藏',
       icon: Star,
+      iconFill: note.isFavorite ? 'currentColor' : 'none',
       hidden: !onToggleFavorite,
       onSelect: () => onToggleFavorite?.(note.id),
     },

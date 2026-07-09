@@ -6,6 +6,8 @@ export interface HoverMenuItem {
   key: string
   label: string
   icon: LucideIcon
+  /** 传给 Lucide 图标的 fill，如收藏星标实心/空心 */
+  iconFill?: string
   danger?: boolean
   hidden?: boolean
   onSelect: () => void
@@ -93,7 +95,10 @@ export function HoverActionMenu({
                       : 'text-on-surface hover:bg-surface-container-low'
                   }`}
                 >
-                  <Icon className={`size-4 ${item.danger ? '' : 'text-on-surface-variant'}`} />
+                  <Icon
+                    className={`size-4 ${item.danger ? '' : 'text-on-surface-variant'}`}
+                    fill={item.iconFill ?? 'none'}
+                  />
                   <span>{item.label}</span>
                 </button>
               </div>
