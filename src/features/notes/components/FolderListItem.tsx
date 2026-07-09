@@ -1,6 +1,7 @@
-import { BookOpen, BriefcaseBusiness, Check, Folder, Lightbulb, Plane, Plus, ReceiptText, Utensils } from 'lucide-react'
-import { useState, type ComponentType } from 'react'
-import type { FolderIcon } from '../../../shared/types/folder'
+import { useState } from 'react'
+import { getFolderIcon } from '../../../shared/notes/folderIcons'
+import { handleSelectableActivate, SelectionCheckbox, SelectionTileIdle } from '../../../shared/ui'
+import { DashedCreate } from './DashedCreate'
 import { FolderMoreControl, type FolderItem } from './FolderCard'
 
 interface FolderListItemProps {
@@ -16,16 +17,6 @@ interface FolderListItemProps {
   onDelete?: (folderId: string) => void
 }
 
-const folderIcons: Record<FolderIcon, ComponentType<{ className?: string }>> = {
-  work: BriefcaseBusiness,
-  study: BookOpen,
-  travel: Plane,
-  ideas: Lightbulb,
-  recipes: Utensils,
-  finance: ReceiptText,
-  folder: Folder,
-}
-
 export function FolderListItem({
   folder,
   selectionMode = false,
@@ -38,23 +29,16 @@ export function FolderListItem({
   onMove,
   onDelete,
 }: FolderListItemProps) {
-  const Icon = folderIcons[folder.icon]
+  const Icon = getFolderIcon(folder.icon)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  function closeMenu() {
-    setMenuOpen(false)
-  }
-
   function handleClick() {
-    if (disabled) {
-      return
-    }
-
-    if (selectionMode) {
-      onToggle?.(folder.id)
-      return
-    }
-    onOpen?.(folder.id)
+    handleSelectableActivate({
+      disabled,
+      selectionMode,
+      onToggle: () => onToggle?.(folder.id),
+      onActivate: () => onOpen?.(folder.id),
+    })
   }
 
   const countLabel = (folder.childCount ?? 0) > 0
@@ -73,24 +57,17 @@ export function FolderListItem({
       }`}
     >
       {selectionMode && !disabled ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggle?.(folder.id)
-          }}
-          aria-label={selected ? '取消选择文件夹' : '选择文件夹'}
-          aria-pressed={selected}
-          className={`flex size-12 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-            selected ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-outline-variant bg-surface-container-high text-on-surface-variant hover:border-primary hover:text-primary'
-          }`}
-        >
-          {selected ? <Check className="size-5" /> : <Icon className="size-5" />}
-        </button>
+        <SelectionCheckbox
+          variant="tile"
+          selected={selected}
+          entityLabel="文件夹"
+          idleIcon={Icon}
+          onToggle={() => onToggle?.(folder.id)}
+        />
       ) : (
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-high text-primary shadow-sm">
+        <SelectionTileIdle>
           <Icon className="size-6" />
-        </div>
+        </SelectionTileIdle>
       )}
 
       <div className="min-w-0 flex-1">
@@ -102,7 +79,6 @@ export function FolderListItem({
           <FolderMoreControl
             open={menuOpen}
             onToggle={setMenuOpen}
-            onClose={closeMenu}
             protectedFolder={folder.protected}
             onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
             onRename={onRename ? () => onRename(folder.id) : undefined}
@@ -122,14 +98,5 @@ export function FolderListItem({
 }
 
 export function AddFolderListItem({ onClick, label = '新建文件夹' }: { onClick?: () => void; label?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-outline-variant/50 bg-surface-container-lowest p-5 text-primary transition-colors duration-300 hover:border-primary hover:bg-surface-container-low active:scale-[0.99]"
-    >
-      <Plus className="size-6 opacity-70" />
-      <span className="font-label-md text-label-md">{label}</span>
-    </button>
-  )
+  return <DashedCreate layout="list" label={label} onClick={onClick} />
 }

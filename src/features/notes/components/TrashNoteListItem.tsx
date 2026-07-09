@@ -1,6 +1,8 @@
-import { RotateCcw, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
 import { formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
+import { getNoteTagNames } from '../../../shared/notes/noteSelectors'
+import { TrashNoteActions } from './TrashNoteActions'
 
 interface TrashNoteListItemProps {
   note: Note
@@ -8,12 +10,8 @@ interface TrashNoteListItemProps {
   onPermanentlyDelete?: () => void
 }
 
-function trashTags(note: Note) {
-  return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : ['已删除']
-}
-
 export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: TrashNoteListItemProps) {
-  const tags = trashTags(note)
+  const tags = getNoteTagNames(note, ['已删除'])
   const daysRemaining = getTrashDaysRemaining(note)
   const purgeLabel = formatTrashPurgeLabel(daysRemaining)
   const urgent = isTrashPurgeUrgent(daysRemaining)
@@ -45,22 +43,11 @@ export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: Tras
         </p>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 self-stretch sm:self-auto">
-        <button
-          type="button"
-          onClick={() => onRestore?.(note.id)}
-          className="flex shrink-0 items-center gap-1 rounded-full bg-primary-container/20 px-3 py-1.5 font-label-md text-label-md text-on-primary-fixed-variant transition-colors hover:bg-primary-container/40"
-        >
-          <RotateCcw className="size-4" /> 恢复
-        </button>
-        <button
-          type="button"
-          onClick={() => onPermanentlyDelete?.()}
-          className="flex shrink-0 items-center gap-1 rounded-full bg-error-container/20 px-3 py-1.5 font-label-md text-label-md text-error transition-colors hover:bg-error-container/40"
-        >
-          <Trash2 className="size-4" /> 永久删除
-        </button>
-      </div>
+      <TrashNoteActions
+        className="self-stretch sm:self-auto"
+        onRestore={onRestore ? () => onRestore(note.id) : undefined}
+        onPermanentlyDelete={onPermanentlyDelete}
+      />
     </article>
   )
 }

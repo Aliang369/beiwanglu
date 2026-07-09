@@ -1,6 +1,6 @@
 import { CheckCircle2, Circle, Image, Star, UsersRound } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
-import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
+import { formatUpdatedAt, getNoteTagNames } from '../../../shared/notes/noteSelectors'
 
 interface FavoriteNoteCardProps {
   note: Note
@@ -8,18 +8,12 @@ interface FavoriteNoteCardProps {
   onSelect?: (noteId: string) => void
 }
 
-const fallbackTags = ['收藏']
-
-function cardTags(note: Note) {
-  return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : fallbackTags
-}
-
 function FavoriteTag({ children }: { children: string }) {
   return <span className="inline-block max-w-[120px] truncate rounded-full bg-surface-container-lowest/85 px-2.5 py-1 font-label-sm text-label-sm text-primary shadow-sm backdrop-blur-md">{children}</span>
 }
 
 export function FavoriteNoteCard({ note, variant = 'default', onSelect }: FavoriteNoteCardProps) {
-  const tags = cardTags(note)
+  const tags = getNoteTagNames(note, ['收藏'])
   const primaryTag = tags[0]
   const updatedAt = formatUpdatedAt(note.updatedAt)
 
