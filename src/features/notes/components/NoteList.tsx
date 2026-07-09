@@ -36,7 +36,9 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   const hasFilter = Boolean(tagId)
   const isEmpty = notes.length === 0
   const showFirstRun = totalCount === 0 && !hasSearch && !hasFilter
-  const selectedVisibleNoteIds = selectedNoteIds.filter((noteId) => notes.some((note) => note.id === noteId))
+  const visibleNoteIds = new Set(notes.map((note) => note.id))
+  const selectedVisibleNoteIds = selectedNoteIds.filter((noteId) => visibleNoteIds.has(noteId))
+  const selectedVisibleNoteIdSet = new Set(selectedVisibleNoteIds)
   const selectionMode = selectedVisibleNoteIds.length > 0
   const noteActions = {
     onToggleFavorite,
@@ -157,7 +159,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
       ) : viewMode === 'list' ? (
         <div className="space-y-4 pb-24">
           {notes.map((note) => (
-            <NoteListRow key={note.id} note={note} onSelect={onSelectNote} selected={selectedVisibleNoteIds.includes(note.id)} {...selectionActions} {...noteActions} />
+            <NoteListRow key={note.id} note={note} onSelect={onSelectNote} selected={selectedVisibleNoteIdSet.has(note.id)} {...selectionActions} {...noteActions} />
           ))}
           <button
             type="button"
@@ -177,7 +179,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
               featured={index === 0}
               visual={note.id === 'design-inspo'}
               onSelect={onSelectNote}
-              selected={selectedVisibleNoteIds.includes(note.id)}
+              selected={selectedVisibleNoteIdSet.has(note.id)}
               {...selectionActions}
               {...noteActions}
             />

@@ -213,10 +213,10 @@ export function NotesHome() {
               onOpenHelp={handleHelpClick}
               onSelectNote={setEditingNoteId}
               onToggleFavorite={(noteId) => void toggleFavorite(noteId)}
-              onMoveToTrash={(noteId) => void moveToTrash(noteId)}
+              onMoveToTrash={(noteId) => moveToTrash(noteId)}
               onRequestMoveToFolder={setMovingNoteId}
               folderOptions={folderOptions}
-              onMoveToFolder={(noteId, folderId) => void moveToFolder(noteId, folderId)}
+              onMoveToFolder={(noteId, folderId) => moveToFolder(noteId, folderId)}
             />
           </main>
         )}

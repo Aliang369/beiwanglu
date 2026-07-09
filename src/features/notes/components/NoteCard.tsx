@@ -53,7 +53,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
     </button>
   ) : null
 
-  const cardMoreControl = (
+  const cardMoreControl = selectionMode ? null : (
     <CardMoreControl
       note={note}
       open={menuOpen}
