@@ -4,10 +4,11 @@ import { AuthModal } from '../auth/AuthModal'
 import type { AuthMode } from '../auth/AuthModal'
 import { EditorView } from './components/EditorView'
 import { FavoritesView } from './components/FavoritesView'
-import { FoldersView } from './components/FoldersView'
+import { FoldersView, folderNames } from './components/FoldersView'
 import { HelpView } from './components/HelpView'
 import { MessageCenterView } from './components/MessageCenterView'
 import { MessageDetailModal } from './components/MessageDetailModal'
+import { MoveToFolderDialog, type MoveToFolderOption } from './components/MoveToFolderDialog'
 import { NoteList } from './components/NoteList'
 import { SettingsView } from './components/SettingsView'
 import type { SettingsTab } from './components/SettingsView'
@@ -29,6 +30,7 @@ export function NotesHome() {
     updateSelectedNote,
     toggleFavorite,
     moveToTrash,
+    moveToFolder,
     setView,
     setQuery,
     setTagFilter,
@@ -38,6 +40,7 @@ export function NotesHome() {
   const [authModal, setAuthModal] = useState<AuthMode | null>(null)
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('profile')
   const [selectedMessage, setSelectedMessage] = useState<MessageItem | null>(null)
+  const [movingNoteId, setMovingNoteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoaded) {
@@ -50,6 +53,19 @@ export function NotesHome() {
   const favoriteTotal = notes.filter((note) => note.isFavorite && !note.isDeleted).length
   const trashTotal = notes.filter((note) => note.isDeleted).length
   const editingNote = notes.find((note) => note.id === editingNoteId)
+  const movingNote = movingNoteId ? notes.find((note) => note.id === movingNoteId) ?? null : null
+  const folderIds = new Set(notes.filter((note) => note.folderId && !note.isDeleted).map((note) => note.folderId as string))
+  for (const folderId of Object.keys(folderNames)) {
+    folderIds.add(folderId)
+  }
+  const folderOptions: MoveToFolderOption[] = [
+    { id: null, name: '无文件夹', noteCount: notes.filter((note) => !note.folderId && !note.isDeleted).length },
+    ...Array.from(folderIds).map((folderId) => ({
+      id: folderId,
+      name: folderNames[folderId]?.name ?? folderId,
+      noteCount: notes.filter((note) => note.folderId === folderId && !note.isDeleted).length,
+    })),
+  ]
 
   function handleViewChange(view: Parameters<typeof setView>[0]) {
     setUtilityView(null)
@@ -198,6 +214,7 @@ export function NotesHome() {
               onSelectNote={setEditingNoteId}
               onToggleFavorite={(noteId) => void toggleFavorite(noteId)}
               onMoveToTrash={(noteId) => void moveToTrash(noteId)}
+              onRequestMoveToFolder={setMovingNoteId}
             />
           </main>
         )}
@@ -227,6 +244,17 @@ export function NotesHome() {
         <Plus className="size-6" />
       </button>
       {authModal ? <AuthModal mode={authModal} onModeChange={setAuthModal} onClose={() => setAuthModal(null)} /> : null}
+      {movingNote ? (
+        <MoveToFolderDialog
+          note={movingNote}
+          folderOptions={folderOptions}
+          onClose={() => setMovingNoteId(null)}
+          onMove={async (folderId) => {
+            await moveToFolder(movingNote.id, folderId)
+            setMovingNoteId(null)
+          }}
+        />
+      ) : null}
       {selectedMessage ? <MessageDetailModal message={selectedMessage} onClose={() => setSelectedMessage(null)} /> : null}
     </div>
   )

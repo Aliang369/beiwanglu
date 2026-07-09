@@ -20,9 +20,10 @@ interface NoteListProps {
   onSelectNote?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
+  onRequestMoveToFolder?: (noteId: string) => void
 }
 
-export function NoteList({ notes, totalCount, query = '', tagId = null, onCreateNote, onClearSearch, onClearTagFilter, onOpenHelp, onSelectNote, onToggleFavorite, onMoveToTrash }: NoteListProps) {
+export function NoteList({ notes, totalCount, query = '', tagId = null, onCreateNote, onClearSearch, onClearTagFilter, onOpenHelp, onSelectNote, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: NoteListProps) {
   const [viewMode, setViewMode] = useState<NotesViewMode>('grid')
   const latestUpdatedAt = notes[0]?.updatedAt ? formatUpdatedAt(notes[0].updatedAt) : '暂无更新'
   const trimmedQuery = query.trim()
@@ -33,6 +34,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   const noteActions = {
     onToggleFavorite,
     onMoveToTrash,
+    onRequestMoveToFolder,
   }
 
   return (
@@ -132,7 +134,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   )
 }
 
-function NoteListRow({ note, onSelect, onToggleFavorite, onMoveToTrash }: { note: Note; onSelect?: (noteId: string) => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void }) {
+function NoteListRow({ note, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: { note: Note; onSelect?: (noteId: string) => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void }) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -174,7 +176,7 @@ function NoteListRow({ note, onSelect, onToggleFavorite, onMoveToTrash }: { note
         <button type="button" onClick={handleMoveToTrashClick} aria-label="删除" className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-error">
           <Trash2 className="size-5" />
         </button>
-        <NoteListRowMoreControl open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} />
+        <NoteListRowMoreControl open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onMoveToFolder={() => onRequestMoveToFolder?.(note.id)} />
       </div>
 
       <div className="hidden shrink-0 text-right sm:block">
@@ -185,7 +187,7 @@ function NoteListRow({ note, onSelect, onToggleFavorite, onMoveToTrash }: { note
   )
 }
 
-export function NoteListRowMoreControl({ open, onToggle, onClose }: { open: boolean; onToggle: (open: boolean) => void; onClose: () => void }) {
+export function NoteListRowMoreControl({ open, onToggle, onClose, onMoveToFolder }: { open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onMoveToFolder?: () => void }) {
   function handleToggle(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggle(!open)
@@ -207,14 +209,20 @@ export function NoteListRowMoreControl({ open, onToggle, onClose }: { open: bool
       >
         <MoreVertical className="size-5" />
       </button>
-      <NoteListRowActionMenu open={open} onClose={onClose} />
+      <NoteListRowActionMenu open={open} onClose={onClose} onMoveToFolder={onMoveToFolder} />
     </div>
   )
 }
 
-function NoteListRowActionMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+function NoteListRowActionMenu({ open, onClose, onMoveToFolder }: { open: boolean; onClose: () => void; onMoveToFolder?: () => void }) {
   function handleItemClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
+    onClose()
+  }
+
+  function handleMoveToFolderClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onMoveToFolder?.()
     onClose()
   }
 
@@ -226,7 +234,7 @@ function NoteListRowActionMenu({ open, onClose }: { open: boolean; onClose: () =
       onClick={(event) => event.stopPropagation()}
     >
       <div className="w-44 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-lg">
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+        <button type="button" onClick={handleMoveToFolderClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <FolderInput className="size-4 text-on-surface-variant" />
           <span>移动到文件夹</span>
         </button>

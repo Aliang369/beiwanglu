@@ -10,9 +10,10 @@ interface NoteCardProps {
   onSelect?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
+  onRequestMoveToFolder?: (noteId: string) => void
 }
 
-export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash }: NoteCardProps) {
+export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: NoteCardProps) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -28,6 +29,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
       onClose={closeMenu}
       onToggleFavorite={onToggleFavorite}
       onMoveToTrash={onMoveToTrash}
+      onRequestMoveToFolder={onRequestMoveToFolder}
     />
   )
 
@@ -91,7 +93,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
           <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
         </div>
       </article>
-      <CardMoreControl note={note} open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
+      {cardMoreControl}
     </div>
   )
 }
@@ -108,7 +110,7 @@ function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
   )
 }
 
-function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void }) {
+function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void }) {
   function handleToggle(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggle(!open)
@@ -122,7 +124,7 @@ function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMo
       onMouseLeave={() => onToggle(false)}
     >
       <CardMoreButton open={open} onClick={handleToggle} />
-      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
+      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} onRequestMoveToFolder={onRequestMoveToFolder} />
     </div>
   )
 }
@@ -141,7 +143,7 @@ function CardMoreButton({ open, onClick }: { open: boolean; onClick: (event: Mou
   )
 }
 
-function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void }) {
+function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void }) {
   function handleItemClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onClose()
@@ -150,6 +152,12 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash }
   function handleFavoriteClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggleFavorite?.(note.id)
+    onClose()
+  }
+
+  function handleMoveToFolderClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onRequestMoveToFolder?.(note.id)
     onClose()
   }
 
@@ -173,7 +181,7 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash }
             <span>{note.isFavorite ? '取消收藏' : '添加收藏'}</span>
           </button>
         ) : null}
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+        <button type="button" onClick={handleMoveToFolderClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <FolderInput className="size-4" />
           <span>移动到文件夹</span>
         </button>

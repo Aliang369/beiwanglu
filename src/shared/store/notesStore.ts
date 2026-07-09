@@ -14,6 +14,7 @@ export interface NotesState {
   updateSelectedNote: (patch: Partial<Pick<Note, 'title' | 'content'>>) => Promise<void>
   toggleFavorite: (noteId: string) => Promise<void>
   moveToTrash: (noteId: string) => Promise<void>
+  moveToFolder: (noteId: string, folderId: string | null) => Promise<void>
   setView: (view: NotesView) => void
   setQuery: (query: string) => void
   setTagFilter: (tagId: string | null) => void
@@ -86,6 +87,17 @@ export function createNotesStore(repository: NotesRepository) {
 
         return { notes, selectedNoteId }
       })
+    },
+
+    async moveToFolder(noteId, folderId) {
+      const note = get().notes.find((item) => item.id === noteId)
+
+      if (!note || note.folderId === folderId) {
+        return
+      }
+
+      const updated = await repository.update(noteId, { folderId })
+      set((state) => ({ notes: replaceNote(state.notes, updated) }))
     },
 
     setView(view) {
