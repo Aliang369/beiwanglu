@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { NotesRepository } from '../data/notesRepository'
 import {
   canMoveFolder,
+  canPlaceFoldersInParent,
   collectSubtreeIdsForMany,
   getRootFolders,
   sortFoldersByName,
@@ -139,13 +140,15 @@ export function createNotesStore(repository: NotesRepository) {
     },
 
     async restoreNote(noteId) {
-      const note = get().notes.find((item) => item.id === noteId)
+      const { folders, notes } = get()
+      const note = notes.find((item) => item.id === noteId)
 
       if (!note || !note.isDeleted) {
         return
       }
 
-      const updated = await repository.update(noteId, { isDeleted: false, deletedAt: null })
+      const folderId = note.folderId && folders.some((folder) => folder.id === note.folderId) ? note.folderId : null
+      const updated = await repository.update(noteId, { isDeleted: false, deletedAt: null, folderId })
       set((state) => ({ notes: replaceNote(state.notes, updated) }))
     },
 
@@ -217,6 +220,10 @@ export function createNotesStore(repository: NotesRepository) {
         }
       }
 
+      if (!canPlaceFoldersInParent(folders, uniqueIds, parentId)) {
+        throw new Error('目标位置已存在同名文件夹。')
+      }
+
       let nextFolders = folders
       for (const folderId of uniqueIds) {
         const updated = await repository.updateFolder(folderId, { parentId })
@@ -247,23 +254,22 @@ export function createNotesStore(repository: NotesRepository) {
       }
 
       const now = new Date().toISOString()
-      const notesToTrash = notes.filter((note) => note.folderId && subtreeIds.has(note.folderId) && !note.isDeleted)
+      const notesToTrash = notes.filter((note) => note.folderId && subtreeIds.has(note.folderId))
 
-      await Promise.all(
-        notesToTrash.map((note) => repository.update(note.id, { isDeleted: true, deletedAt: now })),
+      const trashedNotes = await Promise.all(
+        notesToTrash.map((note) => repository.update(note.id, {
+          isDeleted: true,
+          deletedAt: note.isDeleted ? note.deletedAt : now,
+          folderId: null,
+        })),
       )
       await repository.deleteFolders(Array.from(subtreeIds))
 
       set((state) => {
-        const trashedIds = new Set(notesToTrash.map((note) => note.id))
-        const nextNotes = state.notes.map((note) => {
-          if (!trashedIds.has(note.id)) {
-            return note
-          }
-          return { ...note, isDeleted: true, deletedAt: now }
-        })
+        const trashedById = new Map(trashedNotes.map((note) => [note.id, note]))
+        const nextNotes = state.notes.map((note) => trashedById.get(note.id) ?? note)
         const nextFolders = state.folders.filter((folder) => !subtreeIds.has(folder.id))
-        const selectedNoteId = state.selectedNoteId && trashedIds.has(state.selectedNoteId)
+        const selectedNoteId = state.selectedNoteId && trashedById.has(state.selectedNoteId)
           ? firstVisibleNoteId(nextNotes, state.filter.view)
           : state.selectedNoteId
 

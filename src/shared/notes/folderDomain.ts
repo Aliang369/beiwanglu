@@ -8,6 +8,12 @@ export const DEFAULT_FOLDERS: Array<Pick<Folder, 'id' | 'name' | 'icon'>> = [
   { id: 'personal', name: '个人生活', icon: 'folder' },
 ]
 
+const FOLDER_ICONS: readonly FolderIcon[] = ['work', 'study', 'travel', 'ideas', 'recipes', 'finance', 'folder']
+
+function normalizeFolderIcon(icon: unknown): FolderIcon {
+  return FOLDER_ICONS.includes(icon as FolderIcon) ? icon as FolderIcon : 'folder'
+}
+
 export function buildFolder(draft: FolderDraft, id: string, now: string): Folder {
   return {
     id,
@@ -58,7 +64,7 @@ export function normalizeFolder(raw: Folder): Folder {
   return {
     id: raw.id,
     name: (raw.name || '').trim() || raw.id,
-    icon: (raw.icon as FolderIcon) || 'folder',
+    icon: normalizeFolderIcon(raw.icon),
     parentId: raw.parentId ?? null,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
@@ -66,7 +72,21 @@ export function normalizeFolder(raw: Folder): Folder {
 }
 
 export function normalizeFolders(folders: Folder[]) {
-  return folders.map(normalizeFolder)
+  const normalized = folders.map(normalizeFolder)
+  const byId = new Map(normalized.map((folder) => [folder.id, folder]))
+
+  return normalized.map((folder) => {
+    if (folder.parentId === null || folder.parentId === folder.id) {
+      return { ...folder, parentId: null }
+    }
+
+    const parent = byId.get(folder.parentId)
+    if (!parent || parent.parentId !== null) {
+      return { ...folder, parentId: null }
+    }
+
+    return folder
+  })
 }
 
 export function getChildFolders(folders: Folder[], parentId: string) {
@@ -119,6 +139,39 @@ export function assertValidParentId(folders: Folder[], parentId: string | null, 
   if (parent.parentId !== null) {
     throw new Error('只能放在根级文件夹下，不支持更深嵌套。')
   }
+}
+
+export function hasFolderNameConflict(
+  folders: Folder[],
+  name: string,
+  parentId: string | null,
+  excludeIds: Set<string> = new Set(),
+) {
+  const trimmed = name.trim()
+  return folders.some((folder) => !excludeIds.has(folder.id) && folder.parentId === parentId && folder.name === trimmed)
+}
+
+export function canPlaceFoldersInParent(folders: Folder[], folderIds: string[], nextParentId: string | null) {
+  const movingIds = new Set(folderIds)
+  const movingNames = new Set<string>()
+
+  for (const folderId of folderIds) {
+    const folder = folders.find((item) => item.id === folderId)
+    if (!folder) {
+      return false
+    }
+
+    if (movingNames.has(folder.name)) {
+      return false
+    }
+    movingNames.add(folder.name)
+
+    if (hasFolderNameConflict(folders, folder.name, nextParentId, movingIds)) {
+      return false
+    }
+  }
+
+  return true
 }
 
 export function canMoveFolder(

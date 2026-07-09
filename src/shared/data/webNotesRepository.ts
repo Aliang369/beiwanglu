@@ -1,6 +1,8 @@
 import { mockNotes } from './mockNotes'
 import type { NotesRepository } from './notesRepository'
 import {
+  canMoveFolder,
+  hasFolderNameConflict,
   applyFolderPatch,
   assertValidParentId,
   buildFolder,
@@ -52,8 +54,8 @@ export class WebNotesRepository implements NotesRepository {
     const now = new Date().toISOString()
     assertValidParentId(data.folders, draft.parentId ?? null)
 
-    if (data.folders.some((folder) => folder.name === draft.name.trim())) {
-      throw new Error('已存在同名文件夹。')
+    if (hasFolderNameConflict(data.folders, draft.name, draft.parentId ?? null)) {
+      throw new Error('同级已存在同名文件夹。')
     }
 
     const folder = buildFolder(draft, this.createId(), now)
@@ -88,15 +90,18 @@ export class WebNotesRepository implements NotesRepository {
       throw new Error(`Folder not found: ${id}`)
     }
 
+    const nextParentId = patch.parentId !== undefined ? patch.parentId : data.folders[index].parentId
+    const nextName = patch.name !== undefined ? patch.name : data.folders[index].name
+
     if (patch.parentId !== undefined) {
       assertValidParentId(data.folders, patch.parentId, new Set([id]))
+      if (!canMoveFolder(data.folders, id, patch.parentId)) {
+        throw new Error('文件夹无法移动到该位置。')
+      }
     }
 
-    if (patch.name !== undefined) {
-      const trimmed = patch.name.trim()
-      if (data.folders.some((folder) => folder.id !== id && folder.name === trimmed)) {
-        throw new Error('已存在同名文件夹。')
-      }
+    if (hasFolderNameConflict(data.folders, nextName, nextParentId, new Set([id]))) {
+      throw new Error('同级已存在同名文件夹。')
     }
 
     const updated = applyFolderPatch(data.folders[index], patch, new Date().toISOString())
@@ -210,8 +215,12 @@ export class WebNotesRepository implements NotesRepository {
 
   private write(data: NotesStorageV2) {
     this.storage.setItem(STORAGE_KEY_V2, JSON.stringify(data))
-    // 同步笔记数组到旧 key，避免其它读 v1 的代码完全失联（过渡期）
-    this.storage.setItem(STORAGE_KEY, JSON.stringify(data.notes))
+    try {
+      // 同步笔记数组到旧 key，避免其它读 v1 的代码完全失联（过渡期）
+      this.storage.setItem(STORAGE_KEY, JSON.stringify(data.notes))
+    } catch {
+      // v2 是主数据；兼容旧 key 写入失败不应让调用方误判主写入失败。
+    }
   }
 }
 

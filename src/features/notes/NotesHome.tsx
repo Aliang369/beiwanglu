@@ -224,10 +224,10 @@ export function NotesHome() {
             onClearSearch={() => setQuery('')}
             onClearTagFilter={() => setTagFilter(null)}
             onSelectNote={setEditingNoteId}
-            onCreateFolder={(name, parentId) => void createFolder({ name, parentId })}
-            onRenameFolder={(folderId, name) => void renameFolder(folderId, name)}
-            onMoveFolders={(folderIds, parentId) => void moveFolders(folderIds, parentId)}
-            onDeleteFolders={(folderIds) => void deleteFolders(folderIds)}
+            onCreateFolder={async (name, parentId) => { await createFolder({ name, parentId }) }}
+            onRenameFolder={(folderId, name) => renameFolder(folderId, name)}
+            onMoveFolders={(folderIds, parentId) => moveFolders(folderIds, parentId)}
+            onDeleteFolders={(folderIds) => deleteFolders(folderIds)}
           />
         ) : (
           <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto p-gutter">

@@ -49,7 +49,7 @@ export function RenameFolderDialog({ initialName, existingNames = [], onClose, o
     }
 
     if (existingNames.some((existing) => existing === trimmed && existing !== initialTrimmed)) {
-      setError('已存在同名文件夹。')
+      setError('同级已存在同名文件夹。')
       inputRef.current?.focus()
       return
     }

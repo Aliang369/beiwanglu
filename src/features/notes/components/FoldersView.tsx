@@ -3,7 +3,7 @@ import { ArrowLeft, FileText, SearchX, Star, Tags, Trash2 } from 'lucide-react'
 import type { Folder } from '../../../shared/types/folder'
 import { isProtectedFolderId } from '../../../shared/types/folder'
 import type { Note } from '../../../shared/types/note'
-import { canMoveFolder, getValidMoveTargets } from '../../../shared/notes/folderDomain'
+import { canMoveFolder, canPlaceFoldersInParent, getValidMoveTargets } from '../../../shared/notes/folderDomain'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CreateFolderDialog } from './CreateFolderDialog'
@@ -41,14 +41,6 @@ interface FoldersViewProps {
   onRenameFolder?: (folderId: string, name: string) => void | Promise<void>
   onMoveFolders?: (folderIds: string[], parentId: string | null) => void | Promise<void>
   onDeleteFolders?: (folderIds: string[]) => void | Promise<void>
-}
-
-/** @deprecated 保留导出名供旧引用兼容；真源改为 store folders。 */
-export const folderNames: Record<string, { name: string; icon: FolderItem['icon'] }> = {
-  inbox: { name: '收件箱', icon: 'folder' },
-  work: { name: '工作项目', icon: 'work' },
-  study: { name: '学习笔记', icon: 'study' },
-  personal: { name: '个人生活', icon: 'folder' },
 }
 
 export function FoldersView({
@@ -111,18 +103,26 @@ export function FoldersView({
   const activeFolderNotes = activeFolder ? visibleNotes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
 
   const renamingFolder = renamingFolderId ? folderItemMap.get(renamingFolderId) ?? null : null
-  const existingNames = folders.map((folder) => folder.name)
+  const createParentId = activeFolder && !isActiveChild ? activeFolder.id : null
+  const createExistingNames = folders.filter((folder) => folder.parentId === createParentId).map((folder) => folder.name)
+  const renameExistingNames = renamingFolder
+    ? folders.filter((folder) => folder.parentId === renamingFolder.parentId).map((folder) => folder.name)
+    : []
+
+  function folderMatchesFilter(folder: FolderItem) {
+    return (folder.visibleNoteCount ?? 0) > 0 || (hasSearch && folder.name.includes(trimmedQuery))
+  }
+
+  function hasMatchingChild(folderId: string) {
+    return folderItems.some((child) => child.parentId === folderId && folderMatchesFilter(child))
+  }
 
   const visibleRootFolderItems = hasSearch || hasFilter
-    ? rootFolderItems.filter((folder) => {
-        const selfMatch = (folder.visibleNoteCount ?? 0) > 0 || folder.name.includes(trimmedQuery)
-        const childMatch = folders.some((child) => child.parentId === folder.id && (
-          child.name.includes(trimmedQuery) ||
-          visibleNotes.some((note) => note.folderId === child.id && !note.isDeleted)
-        ))
-        return selfMatch || childMatch
-      })
+    ? rootFolderItems.filter((folder) => folderMatchesFilter(folder) || hasMatchingChild(folder.id))
     : rootFolderItems
+  const visibleChildFolderItems = activeFolderId && (hasSearch || hasFilter)
+    ? childFolderItems.filter(folderMatchesFilter)
+    : childFolderItems
 
   function toggleFolder(folderId: string) {
     setSelectedFolderIds((current) => (current.includes(folderId) ? current.filter((id) => id !== folderId) : [...current, folderId]))
@@ -138,7 +138,7 @@ export function FoldersView({
   }
 
   function selectAllVisible() {
-    const items = activeFolder ? childFolderItems : visibleRootFolderItems
+    const items = activeFolder ? visibleChildFolderItems : visibleRootFolderItems
     const ids = items.map((folder) => folder.id)
     const currentVisibleSelected = selectedFolderIds.filter((id) => items.some((folder) => folder.id === id))
     selectionBeforeSelectAllRef.current = currentVisibleSelected
@@ -163,8 +163,7 @@ export function FoldersView({
   }
 
   async function handleCreate(name: string) {
-    const parentId = activeFolder && !isActiveChild ? activeFolder.id : null
-    await onCreateFolder?.(name, parentId)
+    await onCreateFolder?.(name, createParentId)
     setCreateOpen(false)
   }
 
@@ -219,12 +218,14 @@ export function FoldersView({
         id: null,
         name: '顶层',
         description: '作为根文件夹显示',
+        disabled: !movingFolderIds.every((id) => canMoveFolder(folders, id, null, new Set(movingFolderIds))) || !canPlaceFoldersInParent(folders, movingFolderIds, null),
       },
     ]
 
     if (!targets.rootOnly) {
       for (const folder of targets.rootFolders) {
         const movable = movingFolderIds.every((id) => canMoveFolder(folders, id, folder.id, new Set(movingFolderIds)))
+          && canPlaceFoldersInParent(folders, movingFolderIds, folder.id)
         options.push({
           id: folder.id,
           name: folder.name,
@@ -237,7 +238,7 @@ export function FoldersView({
     return options
   }, [folders, movingFolderIds])
 
-  const selectableItems = activeFolder ? childFolderItems : visibleRootFolderItems
+  const selectableItems = activeFolder ? visibleChildFolderItems : visibleRootFolderItems
   const selectedVisibleIds = selectedFolderIds.filter((id) => selectableItems.some((folder) => folder.id === id))
   const canDeleteSelected = selectedVisibleIds.some((id) => !isProtectedFolderId(id))
   const canMoveSelected = selectedVisibleIds.some((id) => !isProtectedFolderId(id))
@@ -291,7 +292,7 @@ export function FoldersView({
 
   const renderActiveFolderContent = () => {
     const showChildren = !isActiveChild
-    const foldersToShow = showChildren ? childFolderItems : []
+    const foldersToShow = showChildren ? visibleChildFolderItems : []
     const hasFolders = foldersToShow.length > 0
     const hasNotes = activeFolderNotes.length > 0
     const allowCreateChild = showChildren && !selectionMode
@@ -397,7 +398,7 @@ export function FoldersView({
               <h1 className="mb-2 font-headline-lg text-headline-lg text-on-surface">{activeFolder.name}</h1>
               <p className="font-body-md text-body-md text-on-surface-variant">
                 {hasSearch || hasFilter
-                  ? `当前显示 ${activeFolderNotes.length + (!isActiveChild ? childFolderItems.length : 0)} 项`
+                  ? `当前显示 ${activeFolderNotes.length + (!isActiveChild ? visibleChildFolderItems.length : 0)} 项`
                   : `共 ${activeFolderTotalNotes.length} 篇笔记${ !isActiveChild && childFolderItems.length > 0 ? ` · ${childFolderItems.length} 个子文件夹` : ''} · ${activeFolder.updatedLabel}`}
               </p>
             </div>
@@ -436,9 +437,9 @@ export function FoldersView({
           {renderActiveFolderContent()}
         </div>
 
-        {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
+        {createOpen ? <CreateFolderDialog existingNames={createExistingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
         {renamingFolder ? (
-          <RenameFolderDialog initialName={renamingFolder.name} existingNames={existingNames} onClose={() => setRenamingFolderId(null)} onRename={(name) => void handleRename(name)} />
+          <RenameFolderDialog initialName={renamingFolder.name} existingNames={renameExistingNames} onClose={() => setRenamingFolderId(null)} onRename={(name) => void handleRename(name)} />
         ) : null}
         {movingFolderIds ? (
           <MoveFolderDialog
@@ -478,7 +479,7 @@ export function FoldersView({
           </div>
           <FoldersEmptyState onCreate={() => setCreateOpen(true)} />
         </div>
-        {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
+        {createOpen ? <CreateFolderDialog existingNames={createExistingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
       </main>
     )
   }
@@ -519,9 +520,9 @@ export function FoldersView({
         )}
       </div>
 
-      {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
+      {createOpen ? <CreateFolderDialog existingNames={createExistingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
       {renamingFolder ? (
-        <RenameFolderDialog initialName={renamingFolder.name} existingNames={existingNames} onClose={() => setRenamingFolderId(null)} onRename={(name) => void handleRename(name)} />
+        <RenameFolderDialog initialName={renamingFolder.name} existingNames={renameExistingNames} onClose={() => setRenamingFolderId(null)} onRename={(name) => void handleRename(name)} />
       ) : null}
       {movingFolderIds ? (
         <MoveFolderDialog
