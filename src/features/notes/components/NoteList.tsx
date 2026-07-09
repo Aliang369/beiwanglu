@@ -1,5 +1,5 @@
 import { Check, CheckSquare, Copy, FileText, FolderInput, Grid2X2, List, MoreVertical, PlusCircle, SearchX, Star, Tags, Trash2, X } from 'lucide-react'
-import { useState, type MouseEvent } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
 import { EmptyState } from './EmptyState'
@@ -30,6 +30,7 @@ interface NoteListProps {
 export function NoteList({ notes, totalCount, query = '', tagId = null, onCreateNote, onClearSearch, onClearTagFilter, onOpenHelp, onSelectNote, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicateNote, folderOptions = [], onMoveToFolder }: NoteListProps) {
   const [viewMode, setViewMode] = useState<NotesViewMode>('grid')
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([])
+  const selectionBeforeSelectAllRef = useRef<string[] | null>(null)
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false)
   const latestUpdatedAt = notes[0]?.updatedAt ? formatUpdatedAt(notes[0].updatedAt) : '暂无更新'
   const trimmedQuery = query.trim()
@@ -62,12 +63,28 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   }
 
   function clearNoteSelection() {
+    selectionBeforeSelectAllRef.current = null
     setSelectedNoteIds([])
     setBulkMoveOpen(false)
   }
 
   function selectAllVisibleNotes() {
+    // 记住全选前的选择，便于「取消全选」还原
+    selectionBeforeSelectAllRef.current = selectedVisibleNoteIds
     setSelectedNoteIds(notes.map((note) => note.id))
+  }
+
+  function restoreSelectionBeforeSelectAll() {
+    const snapshot = selectionBeforeSelectAllRef.current
+    selectionBeforeSelectAllRef.current = null
+
+    if (snapshot && snapshot.length > 0) {
+      setSelectedNoteIds(snapshot)
+      return
+    }
+
+    // 没有可还原的局部选择时，退回退出多选
+    clearNoteSelection()
   }
 
   async function handleBulkMove(folderId: string | null) {
@@ -126,6 +143,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
           canMove={Boolean(onMoveToFolder)}
           canDelete={Boolean(onMoveToTrash)}
           onSelectAll={selectAllVisibleNotes}
+          onClearSelection={restoreSelectionBeforeSelectAll}
           onMove={() => setBulkMoveOpen(true)}
           onDelete={() => void handleBulkMoveToTrash()}
           onClear={clearNoteSelection}
@@ -212,7 +230,9 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   )
 }
 
-function NotesSelectionBar({ selectedCount, totalCount, canMove, canDelete, onSelectAll, onMove, onDelete, onClear }: { selectedCount: number; totalCount: number; canMove: boolean; canDelete: boolean; onSelectAll: () => void; onMove: () => void; onDelete: () => void; onClear: () => void }) {
+function NotesSelectionBar({ selectedCount, totalCount, canMove, canDelete, onSelectAll, onClearSelection, onMove, onDelete, onClear }: { selectedCount: number; totalCount: number; canMove: boolean; canDelete: boolean; onSelectAll: () => void; onClearSelection: () => void; onMove: () => void; onDelete: () => void; onClear: () => void }) {
+  const allSelected = totalCount > 0 && selectedCount === totalCount
+
   return (
     <div className="mb-6 flex h-16 items-center justify-between rounded-xl bg-surface-container-highest px-4 shadow-sm">
       <div className="flex items-center gap-3">
@@ -222,8 +242,13 @@ function NotesSelectionBar({ selectedCount, totalCount, canMove, canDelete, onSe
         <span className="font-label-lg text-label-lg text-on-surface">已选择 {selectedCount} 项</span>
       </div>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onSelectAll} disabled={selectedCount === totalCount} className="rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline">
-          全选
+        <button
+          type="button"
+          onClick={allSelected ? onClearSelection : onSelectAll}
+          disabled={totalCount === 0}
+          className="rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline"
+        >
+          {allSelected ? '取消全选' : '全选'}
         </button>
         <button type="button" onClick={onMove} disabled={!canMove} className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline">
           <FolderInput className="size-4" />
