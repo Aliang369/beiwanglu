@@ -1,36 +1,65 @@
-import { Edit3, FolderInput, Trash2, X } from 'lucide-react'
+import { FolderInput, Trash2, X } from 'lucide-react'
 
 interface FoldersSelectionBarProps {
   selectedCount: number
+  totalCount: number
+  canMove?: boolean
+  canDelete?: boolean
+  onSelectAll: () => void
+  onMove: () => void
+  onDelete: () => void
   onClear: () => void
 }
 
-export function FoldersSelectionBar({ selectedCount, onClear }: FoldersSelectionBarProps) {
+export function FoldersSelectionBar({
+  selectedCount,
+  totalCount,
+  canMove = true,
+  canDelete = true,
+  onSelectAll,
+  onMove,
+  onDelete,
+  onClear,
+}: FoldersSelectionBarProps) {
   return (
     <div className="mb-6 flex h-16 items-center justify-between rounded-xl bg-surface-container-highest px-4 shadow-sm">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onClear}
-          className="flex size-10 items-center justify-center rounded-full text-on-surface transition-colors hover:bg-surface-variant"
+          aria-label="退出多选"
+          className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
         >
           <X className="size-5" />
         </button>
-        <span className="font-headline-sm text-headline-sm font-bold text-primary">已选择 {selectedCount} 项</span>
+        <span className="font-label-lg text-label-lg text-on-surface">已选择 {selectedCount} 项</span>
       </div>
-      <div className="flex items-center gap-3">
-        {/* TODO: 接入批量移动逻辑。 */}
-        <button type="button" className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-primary transition-colors hover:bg-primary-fixed">
-          <FolderInput className="size-5" /> 移动
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onSelectAll}
+          disabled={selectedCount === totalCount}
+          className="rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline"
+        >
+          全选
         </button>
-        {/* TODO: 接入批量重命名逻辑。 */}
-        <button type="button" className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-primary transition-colors hover:bg-primary-fixed">
-          <Edit3 className="size-5" /> 重命名
+        <button
+          type="button"
+          onClick={onMove}
+          disabled={!canMove}
+          className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline"
+        >
+          <FolderInput className="size-4" />
+          <span>移动</span>
         </button>
-        <div className="mx-1 h-6 w-px bg-outline-variant" />
-        {/* TODO: 接入批量删除逻辑。 */}
-        <button type="button" className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-error transition-colors hover:bg-error-container">
-          <Trash2 className="size-5" /> 删除
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!canDelete}
+          className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-error transition-colors hover:bg-error-container/30 disabled:cursor-not-allowed disabled:text-outline"
+        >
+          <Trash2 className="size-4" />
+          <span>删除</span>
         </button>
       </div>
     </div>

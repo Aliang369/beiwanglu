@@ -4,7 +4,7 @@ import { AuthModal } from '../auth/AuthModal'
 import type { AuthMode } from '../auth/AuthModal'
 import { EditorView } from './components/EditorView'
 import { FavoritesView } from './components/FavoritesView'
-import { FoldersView, folderNames } from './components/FoldersView'
+import { FoldersView } from './components/FoldersView'
 import { HelpView } from './components/HelpView'
 import { MessageCenterView } from './components/MessageCenterView'
 import { MessageDetailModal } from './components/MessageDetailModal'
@@ -22,6 +22,7 @@ import { getVisibleNotes } from '../../shared/notes/noteSelectors'
 export function NotesHome() {
   const {
     notes,
+    folders,
     filter,
     isLoaded,
     loadNotes,
@@ -35,6 +36,10 @@ export function NotesHome() {
     permanentlyDeleteNote,
     emptyTrash,
     moveToFolder,
+    createFolder,
+    renameFolder,
+    moveFolders,
+    deleteFolders,
     setView,
     setQuery,
     setTagFilter,
@@ -58,17 +63,21 @@ export function NotesHome() {
   const trashTotal = notes.filter((note) => note.isDeleted).length
   const editingNote = notes.find((note) => note.id === editingNoteId)
   const movingNote = movingNoteId ? notes.find((note) => note.id === movingNoteId) ?? null : null
-  const folderIds = new Set(notes.filter((note) => note.folderId && !note.isDeleted).map((note) => note.folderId as string))
-  for (const folderId of Object.keys(folderNames)) {
-    folderIds.add(folderId)
-  }
   const folderOptions: MoveToFolderOption[] = [
     { id: null, name: '无文件夹', noteCount: notes.filter((note) => !note.folderId && !note.isDeleted).length },
-    ...Array.from(folderIds).map((folderId) => ({
-      id: folderId,
-      name: folderNames[folderId]?.name ?? folderId,
-      noteCount: notes.filter((note) => note.folderId === folderId && !note.isDeleted).length,
-    })),
+    ...folders
+      .slice()
+      .sort((a, b) => {
+        const ap = a.parentId ? 1 : 0
+        const bp = b.parentId ? 1 : 0
+        if (ap !== bp) return ap - bp
+        return a.name.localeCompare(b.name, 'zh-CN')
+      })
+      .map((folder) => ({
+        id: folder.id,
+        name: folder.parentId ? `　${folder.name}` : folder.name,
+        noteCount: notes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
+      })),
   ]
 
   function handleViewChange(view: Parameters<typeof setView>[0]) {
@@ -208,12 +217,17 @@ export function NotesHome() {
         ) : filter.view === 'folders' ? (
           <FoldersView
             notes={notes}
+            folders={folders}
             visibleNotes={visibleNotes}
             query={filter.query}
             tagId={filter.tagId}
             onClearSearch={() => setQuery('')}
             onClearTagFilter={() => setTagFilter(null)}
             onSelectNote={setEditingNoteId}
+            onCreateFolder={(name, parentId) => void createFolder({ name, parentId })}
+            onRenameFolder={(folderId, name) => void renameFolder(folderId, name)}
+            onMoveFolders={(folderIds, parentId) => void moveFolders(folderIds, parentId)}
+            onDeleteFolders={(folderIds) => void deleteFolders(folderIds)}
           />
         ) : (
           <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto p-gutter">

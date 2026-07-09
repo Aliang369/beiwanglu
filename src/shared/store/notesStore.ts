@@ -1,10 +1,19 @@
 import { create } from 'zustand'
 import type { NotesRepository } from '../data/notesRepository'
+import {
+  canMoveFolder,
+  collectSubtreeIdsForMany,
+  getRootFolders,
+  sortFoldersByName,
+} from '../notes/folderDomain'
 import { firstVisibleNoteId } from '../notes/noteSelectors'
+import type { Folder, FolderDraft } from '../types/folder'
+import { isProtectedFolderId } from '../types/folder'
 import type { Note, NotesFilter, NotesView } from '../types/note'
 
 export interface NotesState {
   notes: Note[]
+  folders: Folder[]
   selectedNoteId: string | null
   filter: NotesFilter
   isLoaded: boolean
@@ -19,6 +28,10 @@ export interface NotesState {
   permanentlyDeleteNote: (noteId: string) => Promise<void>
   emptyTrash: () => Promise<void>
   moveToFolder: (noteId: string, folderId: string | null) => Promise<void>
+  createFolder: (draft: FolderDraft) => Promise<Folder>
+  renameFolder: (folderId: string, name: string) => Promise<void>
+  moveFolders: (folderIds: string[], parentId: string | null) => Promise<void>
+  deleteFolders: (folderIds: string[]) => Promise<void>
   setView: (view: NotesView) => void
   setQuery: (query: string) => void
   setTagFilter: (tagId: string | null) => void
@@ -26,6 +39,10 @@ export interface NotesState {
 
 function replaceNote(notes: Note[], updated: Note) {
   return notes.map((note) => (note.id === updated.id ? updated : note))
+}
+
+function replaceFolder(folders: Folder[], updated: Folder) {
+  return folders.map((folder) => (folder.id === updated.id ? updated : folder))
 }
 
 function buildDuplicateTitle(title: string) {
@@ -36,6 +53,7 @@ function buildDuplicateTitle(title: string) {
 export function createNotesStore(repository: NotesRepository) {
   return create<NotesState>((set, get) => ({
     notes: [],
+    folders: [],
     selectedNoteId: null,
     filter: {
       view: 'all',
@@ -45,9 +63,10 @@ export function createNotesStore(repository: NotesRepository) {
     isLoaded: false,
 
     async loadNotes() {
-      const notes = await repository.list()
+      const [notes, folders] = await Promise.all([repository.list(), repository.listFolders()])
       set((state) => ({
         notes,
+        folders: sortFoldersByName(folders),
         selectedNoteId: state.selectedNoteId ?? firstVisibleNoteId(notes, state.filter.view),
         isLoaded: true,
       }))
@@ -176,6 +195,86 @@ export function createNotesStore(repository: NotesRepository) {
       set((state) => ({ notes: replaceNote(state.notes, updated) }))
     },
 
+    async createFolder(draft) {
+      const folder = await repository.createFolder(draft)
+      set((state) => ({ folders: sortFoldersByName([folder, ...state.folders]) }))
+      return folder
+    },
+
+    async renameFolder(folderId, name) {
+      const updated = await repository.updateFolder(folderId, { name })
+      set((state) => ({ folders: sortFoldersByName(replaceFolder(state.folders, updated)) }))
+    },
+
+    async moveFolders(folderIds, parentId) {
+      const uniqueIds = Array.from(new Set(folderIds))
+      const { folders } = get()
+      const movingSet = new Set(uniqueIds)
+
+      for (const folderId of uniqueIds) {
+        if (!canMoveFolder(folders, folderId, parentId, movingSet)) {
+          throw new Error('部分文件夹无法移动到该位置。')
+        }
+      }
+
+      let nextFolders = folders
+      for (const folderId of uniqueIds) {
+        const updated = await repository.updateFolder(folderId, { parentId })
+        nextFolders = replaceFolder(nextFolders, updated)
+      }
+
+      set({ folders: sortFoldersByName(nextFolders) })
+    },
+
+    async deleteFolders(folderIds) {
+      const uniqueIds = Array.from(new Set(folderIds)).filter((id) => !isProtectedFolderId(id))
+
+      if (uniqueIds.length === 0) {
+        return
+      }
+
+      const { folders, notes } = get()
+      const subtreeIds = collectSubtreeIdsForMany(folders, uniqueIds)
+      // 受保护文件夹不可进入删除集合
+      for (const id of Array.from(subtreeIds)) {
+        if (isProtectedFolderId(id)) {
+          subtreeIds.delete(id)
+        }
+      }
+
+      if (subtreeIds.size === 0) {
+        return
+      }
+
+      const now = new Date().toISOString()
+      const notesToTrash = notes.filter((note) => note.folderId && subtreeIds.has(note.folderId) && !note.isDeleted)
+
+      await Promise.all(
+        notesToTrash.map((note) => repository.update(note.id, { isDeleted: true, deletedAt: now })),
+      )
+      await repository.deleteFolders(Array.from(subtreeIds))
+
+      set((state) => {
+        const trashedIds = new Set(notesToTrash.map((note) => note.id))
+        const nextNotes = state.notes.map((note) => {
+          if (!trashedIds.has(note.id)) {
+            return note
+          }
+          return { ...note, isDeleted: true, deletedAt: now }
+        })
+        const nextFolders = state.folders.filter((folder) => !subtreeIds.has(folder.id))
+        const selectedNoteId = state.selectedNoteId && trashedIds.has(state.selectedNoteId)
+          ? firstVisibleNoteId(nextNotes, state.filter.view)
+          : state.selectedNoteId
+
+        return {
+          notes: nextNotes,
+          folders: nextFolders,
+          selectedNoteId,
+        }
+      })
+    },
+
     setView(view) {
       set((state) => ({
         filter: { ...state.filter, view },
@@ -192,3 +291,5 @@ export function createNotesStore(repository: NotesRepository) {
     },
   }))
 }
+
+export { getRootFolders }

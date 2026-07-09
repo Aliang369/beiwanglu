@@ -1,13 +1,18 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowLeft, FileText, SearchX, Star, Tags, Trash2 } from 'lucide-react'
+import type { Folder } from '../../../shared/types/folder'
+import { isProtectedFolderId } from '../../../shared/types/folder'
 import type { Note } from '../../../shared/types/note'
+import { canMoveFolder, getValidMoveTargets } from '../../../shared/notes/folderDomain'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
+import { ConfirmDialog } from './ConfirmDialog'
+import { CreateFolderDialog } from './CreateFolderDialog'
 import { EmptyState } from './EmptyState'
 import { AddFolderListItem, FolderListItem } from './FolderListItem'
 import { AddFolderCard, FolderCard, type FolderItem } from './FolderCard'
-import { CreateFolderDialog } from './CreateFolderDialog'
 import { FoldersEmptyState } from './FoldersEmptyState'
 import { FoldersSelectionBar } from './FoldersSelectionBar'
+import { MoveFolderDialog, type MoveFolderTargetOption } from './MoveFolderDialog'
 import { NoteCard } from './NoteCard'
 import { NoteListRowMoreControl } from './NoteList'
 import { NoteViewSwitcher, type NoteViewMode } from './NoteViewSwitcher'
@@ -25,14 +30,20 @@ function formatClockTime(value: string) {
 
 interface FoldersViewProps {
   notes: Note[]
+  folders: Folder[]
   visibleNotes: Note[]
   query?: string
   tagId?: string | null
   onClearSearch?: () => void
   onClearTagFilter?: () => void
   onSelectNote?: (noteId: string) => void
+  onCreateFolder?: (name: string, parentId: string | null) => void | Promise<void>
+  onRenameFolder?: (folderId: string, name: string) => void | Promise<void>
+  onMoveFolders?: (folderIds: string[], parentId: string | null) => void | Promise<void>
+  onDeleteFolders?: (folderIds: string[]) => void | Promise<void>
 }
 
+/** @deprecated 保留导出名供旧引用兼容；真源改为 store folders。 */
 export const folderNames: Record<string, { name: string; icon: FolderItem['icon'] }> = {
   inbox: { name: '收件箱', icon: 'folder' },
   work: { name: '工作项目', icon: 'work' },
@@ -40,89 +51,225 @@ export const folderNames: Record<string, { name: string; icon: FolderItem['icon'
   personal: { name: '个人生活', icon: 'folder' },
 }
 
-type FolderMeta = Omit<FolderItem, 'noteCount'>
-
-export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onClearSearch, onClearTagFilter, onSelectNote }: FoldersViewProps) {
-  const [customFolders, setCustomFolders] = useState<FolderMeta[]>([])
-  const [folderOverrides, setFolderOverrides] = useState<Record<string, Partial<FolderMeta>>>({})
+export function FoldersView({
+  notes,
+  folders,
+  visibleNotes,
+  query = '',
+  tagId = null,
+  onClearSearch,
+  onClearTagFilter,
+  onSelectNote,
+  onCreateFolder,
+  onRenameFolder,
+  onMoveFolders,
+  onDeleteFolders,
+}: FoldersViewProps) {
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<NoteViewMode>('grid')
   const [detailViewMode, setDetailViewMode] = useState<NoteViewMode>('grid')
   const [createOpen, setCreateOpen] = useState(false)
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
+  const [movingFolderIds, setMovingFolderIds] = useState<string[] | null>(null)
+  const [deletingFolderIds, setDeletingFolderIds] = useState<string[] | null>(null)
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
-  const selectionMode = selectedFolderIds.length > 0
-  const noteFolders = Array.from(
-    new Set(notes.filter((note) => note.folderId && !note.isDeleted).map((note) => note.folderId as string)),
-  ).map((folderId) => {
-    const latestNote = notes
-      .filter((note) => note.folderId === folderId && !note.isDeleted)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
-    const folderMeta = folderNames[folderId] ?? { name: folderId, icon: 'folder' as const }
-    const override = folderOverrides[folderId]
 
-    return {
-      id: folderId,
-      name: override?.name ?? folderMeta.name,
-      updatedLabel: latestNote ? formatUpdatedAt(latestNote.updatedAt) : '暂无更新',
-      icon: override?.icon ?? folderMeta.icon,
-    }
-  })
-  const folders = [
-    ...customFolders.map((folder) => ({
-      ...folder,
-      ...(folderOverrides[folder.id] ?? {}),
-    })),
-    ...noteFolders.filter((folder) => !customFolders.some((custom) => custom.id === folder.id)),
-  ]
-  const folderItems = folders.map((folder) => ({
-    ...folder,
-    noteCount: notes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
-    visibleNoteCount: visibleNotes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
-  }))
-  const activeFolder = activeFolderId ? folderItems.find((folder) => folder.id === activeFolderId) ?? null : null
-  const activeFolderTotalNotes = activeFolder ? notes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
-  const activeFolderNotes = activeFolder ? visibleNotes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
+  const selectionMode = selectedFolderIds.length > 0
   const trimmedQuery = query.trim()
   const hasSearch = trimmedQuery.length > 0
   const hasFilter = Boolean(tagId)
-  const renamingFolder = renamingFolderId ? folderItems.find((folder) => folder.id === renamingFolderId) ?? null : null
 
-  function createFolder(name: string) {
-    setCustomFolders((current) => [
-      { id: `folder-${Date.now()}`, name, updatedLabel: '刚刚创建', icon: 'folder' },
-      ...current,
-    ])
-    setCreateOpen(false)
-  }
+  const folderItems: FolderItem[] = useMemo(() => {
+    return folders.map((folder) => {
+      const folderNotes = notes.filter((note) => note.folderId === folder.id && !note.isDeleted)
+      const latestNote = [...folderNotes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
+      const childCount = folders.filter((item) => item.parentId === folder.id).length
 
-  function renameFolder(folderId: string, name: string) {
-    setCustomFolders((current) => current.map((folder) => (folder.id === folderId ? { ...folder, name, updatedLabel: '刚刚更新' } : folder)))
-    setFolderOverrides((current) => ({
-      ...current,
-      [folderId]: {
-        ...(current[folderId] ?? {}),
-        name,
-      },
-    }))
-    setRenamingFolderId(null)
-  }
+      return {
+        id: folder.id,
+        name: folder.name,
+        icon: folder.icon,
+        parentId: folder.parentId,
+        noteCount: folderNotes.length,
+        childCount,
+        updatedLabel: latestNote ? formatUpdatedAt(latestNote.updatedAt) : formatUpdatedAt(folder.updatedAt),
+        protected: isProtectedFolderId(folder.id),
+        visibleNoteCount: visibleNotes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
+      }
+    })
+  }, [folders, notes, visibleNotes])
 
+  const folderItemMap = useMemo(() => new Map(folderItems.map((folder) => [folder.id, folder])), [folderItems])
+
+  const rootFolderItems = folderItems.filter((folder) => !folder.parentId)
+  const activeFolder = activeFolderId ? folderItemMap.get(activeFolderId) ?? null : null
+  const activeFolderRecord = activeFolderId ? folders.find((folder) => folder.id === activeFolderId) ?? null : null
+  const isActiveChild = Boolean(activeFolderRecord?.parentId)
+  const childFolderItems = activeFolderId ? folderItems.filter((folder) => folder.parentId === activeFolderId) : []
+  const activeFolderTotalNotes = activeFolder ? notes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
+  const activeFolderNotes = activeFolder ? visibleNotes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
+
+  const renamingFolder = renamingFolderId ? folderItemMap.get(renamingFolderId) ?? null : null
   const existingNames = folders.map((folder) => folder.name)
 
+  const visibleRootFolderItems = hasSearch || hasFilter
+    ? rootFolderItems.filter((folder) => {
+        const selfMatch = (folder.visibleNoteCount ?? 0) > 0 || folder.name.includes(trimmedQuery)
+        const childMatch = folders.some((child) => child.parentId === folder.id && (
+          child.name.includes(trimmedQuery) ||
+          visibleNotes.some((note) => note.folderId === child.id && !note.isDeleted)
+        ))
+        return selfMatch || childMatch
+      })
+    : rootFolderItems
+
   function toggleFolder(folderId: string) {
-    setSelectedFolderIds((current) =>
-      current.includes(folderId) ? current.filter((id) => id !== folderId) : [...current, folderId],
-    )
+    setSelectedFolderIds((current) => (current.includes(folderId) ? current.filter((id) => id !== folderId) : [...current, folderId]))
   }
 
   function startSelection(folderId: string) {
     setSelectedFolderIds((current) => (current.includes(folderId) ? current : [...current, folderId]))
   }
 
+  function clearSelection() {
+    setSelectedFolderIds([])
+  }
+
+  function selectAllVisible() {
+    const ids = (activeFolder ? childFolderItems : visibleRootFolderItems).map((folder) => folder.id)
+    setSelectedFolderIds(ids)
+  }
+
   function openFolder(folderId: string) {
     setSelectedFolderIds([])
     setActiveFolderId(folderId)
+  }
+
+  async function handleCreate(name: string) {
+    const parentId = activeFolder && !isActiveChild ? activeFolder.id : null
+    await onCreateFolder?.(name, parentId)
+    setCreateOpen(false)
+  }
+
+  async function handleRename(name: string) {
+    if (!renamingFolder) {
+      return
+    }
+    await onRenameFolder?.(renamingFolder.id, name)
+    setRenamingFolderId(null)
+  }
+
+  function openMove(folderIds: string[]) {
+    setMovingFolderIds(folderIds)
+  }
+
+  function openDelete(folderIds: string[]) {
+    const deletable = folderIds.filter((id) => !isProtectedFolderId(id))
+    if (deletable.length === 0) {
+      return
+    }
+    setDeletingFolderIds(deletable)
+  }
+
+  async function handleMove(parentId: string | null) {
+    if (!movingFolderIds?.length) {
+      return
+    }
+    await onMoveFolders?.(movingFolderIds, parentId)
+    setMovingFolderIds(null)
+    clearSelection()
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deletingFolderIds?.length) {
+      return
+    }
+    await onDeleteFolders?.(deletingFolderIds)
+    setDeletingFolderIds(null)
+    clearSelection()
+    if (activeFolderId && deletingFolderIds.includes(activeFolderId)) {
+      setActiveFolderId(null)
+    }
+  }
+
+  const moveOptions: MoveFolderTargetOption[] = useMemo(() => {
+    if (!movingFolderIds?.length) {
+      return []
+    }
+    const targets = getValidMoveTargets(folders, movingFolderIds)
+    const options: MoveFolderTargetOption[] = [
+      {
+        id: null,
+        name: '顶层',
+        description: '作为根文件夹显示',
+      },
+    ]
+
+    if (!targets.rootOnly) {
+      for (const folder of targets.rootFolders) {
+        const movable = movingFolderIds.every((id) => canMoveFolder(folders, id, folder.id, new Set(movingFolderIds)))
+        options.push({
+          id: folder.id,
+          name: folder.name,
+          description: '移动到该文件夹下（一层）',
+          disabled: !movable,
+        })
+      }
+    }
+
+    return options
+  }, [folders, movingFolderIds])
+
+  const selectableItems = activeFolder ? childFolderItems : visibleRootFolderItems
+  const selectedVisibleIds = selectedFolderIds.filter((id) => selectableItems.some((folder) => folder.id === id))
+  const canDeleteSelected = selectedVisibleIds.some((id) => !isProtectedFolderId(id))
+  const canMoveSelected = selectedVisibleIds.some((id) => !isProtectedFolderId(id))
+
+  const createLabel = activeFolder && !isActiveChild ? '新建子文件夹' : '新建文件夹'
+  const deletingNames = (deletingFolderIds ?? []).map((id) => folderItemMap.get(id)?.name ?? id)
+
+  const listSection = (items: FolderItem[], allowCreate: boolean) => {
+    if (viewMode === 'list') {
+      return (
+        <div className="space-y-4 pb-24">
+          {items.map((folder) => (
+            <FolderListItem
+              key={folder.id}
+              folder={folder}
+              selectionMode={selectionMode}
+              selected={selectedFolderIds.includes(folder.id)}
+              onToggle={toggleFolder}
+              onOpen={openFolder}
+              onStartSelection={startSelection}
+              onRename={setRenamingFolderId}
+              onMove={(folderId) => openMove([folderId])}
+              onDelete={(folderId) => openDelete([folderId])}
+            />
+          ))}
+          {allowCreate && !selectionMode ? <AddFolderListItem label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
+        </div>
+      )
+    }
+
+    return (
+      <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {items.map((folder) => (
+          <FolderCard
+            key={folder.id}
+            folder={folder}
+            selectionMode={selectionMode}
+            selected={selectedFolderIds.includes(folder.id)}
+            onToggle={toggleFolder}
+            onStartSelection={startSelection}
+            onOpen={openFolder}
+            onRename={setRenamingFolderId}
+            onMove={(folderId) => openMove([folderId])}
+            onDelete={(folderId) => openDelete([folderId])}
+          />
+        ))}
+        {allowCreate ? <AddFolderCard disabled={selectionMode} label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
+      </div>
+    )
   }
 
   if (activeFolder) {
@@ -133,54 +280,104 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
             <div>
               <h1 className="mb-2 font-headline-lg text-headline-lg text-on-surface">{activeFolder.name}</h1>
               <p className="font-body-md text-body-md text-on-surface-variant">
-                {hasSearch || hasFilter ? `当前显示 ${activeFolderNotes.length} / 共 ${activeFolderTotalNotes.length} 篇笔记` : `共 ${activeFolderTotalNotes.length} 篇笔记 · ${activeFolder.updatedLabel}`}
+                {hasSearch || hasFilter
+                  ? `当前显示 ${activeFolderNotes.length} / 共 ${activeFolderTotalNotes.length} 篇笔记`
+                  : `共 ${activeFolderTotalNotes.length} 篇笔记 · ${childFolderItems.length} 个子文件夹 · ${activeFolder.updatedLabel}`}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setActiveFolderId(null)}
+                onClick={() => {
+                  clearSelection()
+                  setActiveFolderId(activeFolderRecord?.parentId ?? null)
+                }}
                 className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:border-primary hover:bg-surface-container-low hover:text-primary"
               >
                 <ArrowLeft className="size-4" />
-                返回文件夹
+                返回
               </button>
-              {activeFolderNotes.length > 0 ? <NoteViewSwitcher value={detailViewMode} onChange={setDetailViewMode} /> : null}
+              {activeFolderNotes.length > 0 || childFolderItems.length > 0 ? (
+                <NoteViewSwitcher value={detailViewMode} onChange={setDetailViewMode} />
+              ) : null}
             </div>
           </div>
 
-          {activeFolderNotes.length === 0 ? (
-            hasSearch ? (
-              <EmptyState icon={SearchX} title="没有找到相关笔记" description={`这个文件夹中没有匹配“${trimmedQuery}”的内容。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} compact />
-            ) : hasFilter ? (
-              <EmptyState icon={Tags} title="当前筛选没有结果" description="这个文件夹中没有符合当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} compact />
+          {selectionMode ? (
+            <FoldersSelectionBar
+              selectedCount={selectedVisibleIds.length}
+              totalCount={selectableItems.length}
+              canMove={canMoveSelected}
+              canDelete={canDeleteSelected}
+              onSelectAll={selectAllVisible}
+              onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
+              onDelete={() => openDelete(selectedVisibleIds)}
+              onClear={clearSelection}
+            />
+          ) : null}
+
+          {!isActiveChild && (childFolderItems.length > 0 || !selectionMode) ? (
+            <section className="mb-10">
+              <h2 className="mb-4 font-headline-sm text-headline-sm text-on-surface">子文件夹</h2>
+              {listSection(childFolderItems, !isActiveChild)}
+            </section>
+          ) : null}
+
+          <section>
+            <h2 className="mb-4 font-headline-sm text-headline-sm text-on-surface">笔记</h2>
+            {activeFolderNotes.length === 0 ? (
+              hasSearch ? (
+                <EmptyState icon={SearchX} title="没有找到相关笔记" description={`这个文件夹中没有匹配“${trimmedQuery}”的内容。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} compact />
+              ) : hasFilter ? (
+                <EmptyState icon={Tags} title="当前筛选没有结果" description="这个文件夹中没有符合当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} compact />
+              ) : (
+                <EmptyState icon={FileText} title="这个文件夹还没有笔记" description="归类到这里的笔记会显示在这个页面。" variant="folders" compact />
+              )
+            ) : detailViewMode === 'grid' ? (
+              <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {activeFolderNotes.map((note) => (
+                  <NoteCard key={note.id} note={note} visual={note.id === 'design-inspo'} onSelect={onSelectNote} />
+                ))}
+              </div>
             ) : (
-              <EmptyState icon={FileText} title="这个文件夹还没有笔记" description="归类到这里的笔记会显示在这个页面。" variant="folders" compact />
-            )
-          ) : detailViewMode === 'grid' ? (
-            <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {activeFolderNotes.map((note) => (
-                <NoteCard
-                  key={note.id}
-                  note={note}
-                  visual={note.id === 'design-inspo'}
-                  onSelect={onSelectNote}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4 pb-24">
-              {activeFolderNotes.map((note) => (
-                <FolderNoteListRow key={note.id} note={note} onSelect={onSelectNote} />
-              ))}
-            </div>
-          )}
+              <div className="space-y-4 pb-24">
+                {activeFolderNotes.map((note) => (
+                  <FolderNoteListRow key={note.id} note={note} onSelect={onSelectNote} />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
+
+        {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
+        {renamingFolder ? (
+          <RenameFolderDialog initialName={renamingFolder.name} existingNames={existingNames} onClose={() => setRenamingFolderId(null)} onRename={(name) => void handleRename(name)} />
+        ) : null}
+        {movingFolderIds ? (
+          <MoveFolderDialog
+            description={`将 ${movingFolderIds.length} 个文件夹移动到目标位置（含子文件夹与笔记）。`}
+            options={moveOptions}
+            onClose={() => setMovingFolderIds(null)}
+            onMove={handleMove}
+          />
+        ) : null}
+        {deletingFolderIds ? (
+          <ConfirmDialog
+            description={
+              <>
+                将删除 {deletingNames.join('、')}。
+                <span className="mt-1 block text-error">子文件夹会一并删除，其中的笔记会进入废纸篓。</span>
+              </>
+            }
+            confirmLabel="删除文件夹"
+            isDestructive
+            onClose={() => setDeletingFolderIds(null)}
+            onConfirm={handleDeleteConfirm}
+          />
+        ) : null}
       </main>
     )
   }
-
-  const visibleFolderItems = hasSearch || hasFilter ? folderItems.filter((folder) => folder.visibleNoteCount > 0) : folderItems
 
   if (folderItems.length === 0) {
     return (
@@ -192,35 +389,9 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
               <p className="font-body-md text-body-md text-on-surface-variant">管理和整理您分类保存的笔记。</p>
             </div>
           </div>
-          {hasSearch ? (
-            <EmptyState icon={SearchX} title="没有找到相关文件夹" description={`没有匹配“${trimmedQuery}”的文件夹或笔记。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} />
-          ) : hasFilter ? (
-            <EmptyState icon={Tags} title="当前筛选没有结果" description="没有文件夹包含当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} />
-          ) : (
-            <FoldersEmptyState onCreate={() => setCreateOpen(true)} />
-          )}
+          <FoldersEmptyState onCreate={() => setCreateOpen(true)} />
         </div>
-        {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={createFolder} /> : null}
-      </main>
-    )
-  }
-
-  if (visibleFolderItems.length === 0 && (hasSearch || hasFilter)) {
-    return (
-      <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
-        <div className="mx-auto max-w-container-max-width">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <h1 className="mb-2 font-headline-lg text-headline-lg text-on-surface">我的文件夹</h1>
-              <p className="font-body-md text-body-md text-on-surface-variant">管理和整理您分类保存的笔记。</p>
-            </div>
-          </div>
-          {hasSearch ? (
-            <EmptyState icon={SearchX} title="没有找到相关文件夹" description={`没有匹配“${trimmedQuery}”的文件夹或笔记。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} />
-          ) : (
-            <EmptyState icon={Tags} title="当前筛选没有结果" description="没有文件夹包含当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} />
-          )}
-        </div>
+        {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
       </main>
     )
   }
@@ -228,7 +399,18 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
   return (
     <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
       <div className="mx-auto max-w-container-max-width">
-        {selectionMode ? <FoldersSelectionBar selectedCount={selectedFolderIds.length} onClear={() => setSelectedFolderIds([])} /> : null}
+        {selectionMode ? (
+          <FoldersSelectionBar
+            selectedCount={selectedVisibleIds.length}
+            totalCount={selectableItems.length}
+            canMove={canMoveSelected}
+            canDelete={canDeleteSelected}
+            onSelectAll={selectAllVisible}
+            onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
+            onDelete={() => openDelete(selectedVisibleIds)}
+            onClear={clearSelection}
+          />
+        ) : null}
 
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
@@ -238,38 +420,41 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
           {selectionMode ? null : <NoteViewSwitcher value={viewMode} onChange={setViewMode} />}
         </div>
 
-        {viewMode === 'list' && !selectionMode ? (
-          <div className="space-y-4 pb-24">
-            {visibleFolderItems.map((folder) => (
-              <FolderListItem key={folder.id} folder={folder} onOpen={openFolder} onStartSelection={startSelection} onRename={setRenamingFolderId} />
-            ))}
-            <AddFolderListItem onClick={() => setCreateOpen(true)} />
-          </div>
+        {visibleRootFolderItems.length === 0 && (hasSearch || hasFilter) ? (
+          hasSearch ? (
+            <EmptyState icon={SearchX} title="没有找到相关文件夹" description={`没有匹配“${trimmedQuery}”的文件夹或笔记。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} />
+          ) : (
+            <EmptyState icon={Tags} title="当前筛选没有结果" description="没有文件夹包含当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} />
+          )
         ) : (
-          <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {visibleFolderItems.map((folder) => (
-              <FolderCard
-                key={folder.id}
-                folder={folder}
-                selectionMode={selectionMode}
-                selected={selectedFolderIds.includes(folder.id)}
-                onToggle={toggleFolder}
-                onStartSelection={startSelection}
-                onOpen={openFolder}
-                onRename={setRenamingFolderId}
-              />
-            ))}
-            <AddFolderCard disabled={selectionMode} onClick={() => setCreateOpen(true)} />
-          </div>
+          listSection(visibleRootFolderItems, true)
         )}
       </div>
-      {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={createFolder} /> : null}
+
+      {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
       {renamingFolder ? (
-        <RenameFolderDialog
-          initialName={renamingFolder.name}
-          existingNames={existingNames}
-          onClose={() => setRenamingFolderId(null)}
-          onRename={(name) => renameFolder(renamingFolder.id, name)}
+        <RenameFolderDialog initialName={renamingFolder.name} existingNames={existingNames} onClose={() => setRenamingFolderId(null)} onRename={(name) => void handleRename(name)} />
+      ) : null}
+      {movingFolderIds ? (
+        <MoveFolderDialog
+          description={`将 ${movingFolderIds.length} 个文件夹移动到目标位置（含子文件夹与笔记）。`}
+          options={moveOptions}
+          onClose={() => setMovingFolderIds(null)}
+          onMove={handleMove}
+        />
+      ) : null}
+      {deletingFolderIds ? (
+        <ConfirmDialog
+          description={
+            <>
+              将删除 {deletingNames.join('、')}。
+              <span className="mt-1 block text-error">子文件夹会一并删除，其中的笔记会进入废纸篓。</span>
+            </>
+          }
+          confirmLabel="删除文件夹"
+          isDestructive
+          onClose={() => setDeletingFolderIds(null)}
+          onConfirm={handleDeleteConfirm}
         />
       ) : null}
     </main>
