@@ -1,4 +1,4 @@
-import { BookOpen, BriefcaseBusiness, Check, CheckSquare, Copy, Edit3, Folder, FolderInput, Lightbulb, MoreVertical, Plane, Plus, ReceiptText, Trash2, Utensils } from 'lucide-react'
+import { BookOpen, BriefcaseBusiness, Check, CheckSquare, Edit3, Folder, FolderInput, Lightbulb, MoreVertical, Plane, Plus, ReceiptText, Trash2, Utensils } from 'lucide-react'
 import { useState, type ComponentType, type MouseEvent } from 'react'
 
 export interface FolderItem {
@@ -16,6 +16,7 @@ interface FolderCardProps {
   onToggle: (folderId: string) => void
   onStartSelection?: (folderId: string) => void
   onOpen?: (folderId: string) => void
+  onRename?: (folderId: string) => void
 }
 
 const folderIcons: Record<FolderItem['icon'], ComponentType<{ className?: string }>> = {
@@ -28,7 +29,7 @@ const folderIcons: Record<FolderItem['icon'], ComponentType<{ className?: string
   folder: Folder,
 }
 
-export function FolderCard({ folder, selectionMode, selected, onToggle, onStartSelection, onOpen }: FolderCardProps) {
+export function FolderCard({ folder, selectionMode, selected, onToggle, onStartSelection, onOpen, onRename }: FolderCardProps) {
   const Icon = folderIcons[folder.icon]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -64,6 +65,7 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
           onToggle={setMenuOpen}
           onClose={closeMenu}
           onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
+          onRename={onRename ? () => onRename(folder.id) : undefined}
         />
       )}
 
@@ -82,7 +84,21 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
   )
 }
 
-export function FolderMoreControl({ open, onToggle, onClose, onStartSelection, variant = 'card' }: { open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onStartSelection?: () => void; variant?: 'card' | 'inline' }) {
+export function FolderMoreControl({
+  open,
+  onToggle,
+  onClose,
+  onStartSelection,
+  onRename,
+  variant = 'card',
+}: {
+  open: boolean
+  onToggle: (open: boolean) => void
+  onClose: () => void
+  onStartSelection?: () => void
+  onRename?: () => void
+  variant?: 'card' | 'inline'
+}) {
   function handleToggle(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggle(!open)
@@ -104,14 +120,30 @@ export function FolderMoreControl({ open, onToggle, onClose, onStartSelection, v
       >
         <MoreVertical className="size-4" />
       </button>
-      <FolderActionMenu open={open} onClose={onClose} onStartSelection={onStartSelection} />
+      <FolderActionMenu open={open} onClose={onClose} onStartSelection={onStartSelection} onRename={onRename} />
     </div>
   )
 }
 
-function FolderActionMenu({ open, onClose, onStartSelection }: { open: boolean; onClose: () => void; onStartSelection?: () => void }) {
+function FolderActionMenu({
+  open,
+  onClose,
+  onStartSelection,
+  onRename,
+}: {
+  open: boolean
+  onClose: () => void
+  onStartSelection?: () => void
+  onRename?: () => void
+}) {
   function handleItemClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
+    onClose()
+  }
+
+  function handleRename(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onRename?.()
     onClose()
   }
 
@@ -129,7 +161,7 @@ function FolderActionMenu({ open, onClose, onStartSelection }: { open: boolean; 
       onClick={(event) => event.stopPropagation()}
     >
       <div className="w-48 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-lg">
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+        <button type="button" onClick={handleRename} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <Edit3 className="size-4 text-on-surface-variant" />
           <span>重命名</span>
         </button>
@@ -140,10 +172,6 @@ function FolderActionMenu({ open, onClose, onStartSelection }: { open: boolean; 
         <button type="button" onClick={handleStartSelection} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <CheckSquare className="size-4 text-on-surface-variant" />
           <span>多选</span>
-        </button>
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <Copy className="size-4 text-on-surface-variant" />
-          <span>复制名称</span>
         </button>
         <div className="my-1 border-t border-outline-variant/30" />
         <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-error transition-colors hover:bg-error-container/30">

@@ -11,6 +11,7 @@ import { FoldersSelectionBar } from './FoldersSelectionBar'
 import { NoteCard } from './NoteCard'
 import { NoteListRowMoreControl } from './NoteList'
 import { NoteViewSwitcher, type NoteViewMode } from './NoteViewSwitcher'
+import { RenameFolderDialog } from './RenameFolderDialog'
 
 function formatClockTime(value: string) {
   const date = new Date(value)
@@ -39,12 +40,16 @@ export const folderNames: Record<string, { name: string; icon: FolderItem['icon'
   personal: { name: '个人生活', icon: 'folder' },
 }
 
+type FolderMeta = Omit<FolderItem, 'noteCount'>
+
 export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onClearSearch, onClearTagFilter, onSelectNote }: FoldersViewProps) {
-  const [customFolders, setCustomFolders] = useState<Array<Omit<FolderItem, 'noteCount'>>>([])
+  const [customFolders, setCustomFolders] = useState<FolderMeta[]>([])
+  const [folderOverrides, setFolderOverrides] = useState<Record<string, Partial<FolderMeta>>>({})
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<NoteViewMode>('grid')
   const [detailViewMode, setDetailViewMode] = useState<NoteViewMode>('grid')
   const [createOpen, setCreateOpen] = useState(false)
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
   const selectionMode = selectedFolderIds.length > 0
   const noteFolders = Array.from(
@@ -54,15 +59,22 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
       .filter((note) => note.folderId === folderId && !note.isDeleted)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
     const folderMeta = folderNames[folderId] ?? { name: folderId, icon: 'folder' as const }
+    const override = folderOverrides[folderId]
 
     return {
       id: folderId,
-      name: folderMeta.name,
+      name: override?.name ?? folderMeta.name,
       updatedLabel: latestNote ? formatUpdatedAt(latestNote.updatedAt) : '暂无更新',
-      icon: folderMeta.icon,
+      icon: override?.icon ?? folderMeta.icon,
     }
   })
-  const folders = [...customFolders, ...noteFolders.filter((folder) => !customFolders.some((custom) => custom.id === folder.id))]
+  const folders = [
+    ...customFolders.map((folder) => ({
+      ...folder,
+      ...(folderOverrides[folder.id] ?? {}),
+    })),
+    ...noteFolders.filter((folder) => !customFolders.some((custom) => custom.id === folder.id)),
+  ]
   const folderItems = folders.map((folder) => ({
     ...folder,
     noteCount: notes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
@@ -74,6 +86,7 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
   const trimmedQuery = query.trim()
   const hasSearch = trimmedQuery.length > 0
   const hasFilter = Boolean(tagId)
+  const renamingFolder = renamingFolderId ? folderItems.find((folder) => folder.id === renamingFolderId) ?? null : null
 
   function createFolder(name: string) {
     setCustomFolders((current) => [
@@ -81,6 +94,18 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
       ...current,
     ])
     setCreateOpen(false)
+  }
+
+  function renameFolder(folderId: string, name: string) {
+    setCustomFolders((current) => current.map((folder) => (folder.id === folderId ? { ...folder, name, updatedLabel: '刚刚更新' } : folder)))
+    setFolderOverrides((current) => ({
+      ...current,
+      [folderId]: {
+        ...(current[folderId] ?? {}),
+        name,
+      },
+    }))
+    setRenamingFolderId(null)
   }
 
   const existingNames = folders.map((folder) => folder.name)
@@ -216,7 +241,7 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
         {viewMode === 'list' && !selectionMode ? (
           <div className="space-y-4 pb-24">
             {visibleFolderItems.map((folder) => (
-              <FolderListItem key={folder.id} folder={folder} onOpen={openFolder} onStartSelection={startSelection} />
+              <FolderListItem key={folder.id} folder={folder} onOpen={openFolder} onStartSelection={startSelection} onRename={setRenamingFolderId} />
             ))}
             <AddFolderListItem onClick={() => setCreateOpen(true)} />
           </div>
@@ -231,6 +256,7 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
                 onToggle={toggleFolder}
                 onStartSelection={startSelection}
                 onOpen={openFolder}
+                onRename={setRenamingFolderId}
               />
             ))}
             <AddFolderCard disabled={selectionMode} onClick={() => setCreateOpen(true)} />
@@ -238,6 +264,14 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
         )}
       </div>
       {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={createFolder} /> : null}
+      {renamingFolder ? (
+        <RenameFolderDialog
+          initialName={renamingFolder.name}
+          existingNames={existingNames}
+          onClose={() => setRenamingFolderId(null)}
+          onRename={(name) => renameFolder(renamingFolder.id, name)}
+        />
+      ) : null}
     </main>
   )
 }

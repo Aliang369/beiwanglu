@@ -7,6 +7,7 @@ interface FolderListItemProps {
   folder: FolderItem
   onOpen?: (folderId: string) => void
   onStartSelection?: (folderId: string) => void
+  onRename?: (folderId: string) => void
 }
 
 const folderIcons: Record<FolderItem['icon'], ComponentType<{ className?: string }>> = {
@@ -19,7 +20,7 @@ const folderIcons: Record<FolderItem['icon'], ComponentType<{ className?: string
   folder: Folder,
 }
 
-export function FolderListItem({ folder, onOpen, onStartSelection }: FolderListItemProps) {
+export function FolderListItem({ folder, onOpen, onStartSelection, onRename }: FolderListItemProps) {
   const Icon = folderIcons[folder.icon]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -44,6 +45,7 @@ export function FolderListItem({ folder, onOpen, onStartSelection }: FolderListI
           onToggle={setMenuOpen}
           onClose={closeMenu}
           onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
+          onRename={onRename ? () => onRename(folder.id) : undefined}
           variant="inline"
         />
       </div>
