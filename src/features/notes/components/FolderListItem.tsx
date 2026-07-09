@@ -1,6 +1,6 @@
-import { Check } from 'lucide-react'
 import { useState } from 'react'
 import { getFolderIcon } from '../../../shared/notes/folderIcons'
+import { handleSelectableActivate, SelectionCheckbox, SelectionTileIdle } from '../../../shared/ui'
 import { DashedCreate } from './DashedCreate'
 import { FolderMoreControl, type FolderItem } from './FolderCard'
 
@@ -37,15 +37,12 @@ export function FolderListItem({
   }
 
   function handleClick() {
-    if (disabled) {
-      return
-    }
-
-    if (selectionMode) {
-      onToggle?.(folder.id)
-      return
-    }
-    onOpen?.(folder.id)
+    handleSelectableActivate({
+      disabled,
+      selectionMode,
+      onToggle: () => onToggle?.(folder.id),
+      onActivate: () => onOpen?.(folder.id),
+    })
   }
 
   const countLabel = (folder.childCount ?? 0) > 0
@@ -64,24 +61,17 @@ export function FolderListItem({
       }`}
     >
       {selectionMode && !disabled ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggle?.(folder.id)
-          }}
-          aria-label={selected ? '取消选择文件夹' : '选择文件夹'}
-          aria-pressed={selected}
-          className={`flex size-12 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-            selected ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-outline-variant bg-surface-container-high text-on-surface-variant hover:border-primary hover:text-primary'
-          }`}
-        >
-          {selected ? <Check className="size-5" /> : <Icon className="size-5" />}
-        </button>
+        <SelectionCheckbox
+          variant="tile"
+          selected={selected}
+          entityLabel="文件夹"
+          idleIcon={Icon}
+          onToggle={() => onToggle?.(folder.id)}
+        />
       ) : (
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-high text-primary shadow-sm">
+        <SelectionTileIdle>
           <Icon className="size-6" />
-        </div>
+        </SelectionTileIdle>
       )}
 
       <div className="min-w-0 flex-1">

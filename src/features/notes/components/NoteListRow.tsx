@@ -1,8 +1,8 @@
-import { Check, CheckSquare, Copy, FileText, FolderInput, Star, Trash2 } from 'lucide-react'
+import { CheckSquare, Copy, FileText, FolderInput, Star, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatClockTime, formatUpdatedAt } from '../../../shared/notes/noteSelectors'
-import { HoverActionMenu, type HoverMenuItem } from '../../../shared/ui'
+import { handleSelectableActivate, HoverActionMenu, SelectionCheckbox, SelectionTileIdle, type HoverMenuItem } from '../../../shared/ui'
 
 interface NoteListRowProps {
   note: Note
@@ -51,24 +51,12 @@ export function NoteListRow({
   }
 
   function handleRowClick() {
-    if (disabled) {
-      return
-    }
-
-    if (selectionMode) {
-      onToggleSelection?.(note.id)
-      return
-    }
-
-    onSelect?.(note.id)
-  }
-
-  function handleSelectionClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    if (disabled) {
-      return
-    }
-    onToggleSelection?.(note.id)
+    handleSelectableActivate({
+      disabled,
+      selectionMode,
+      onToggle: () => onToggleSelection?.(note.id),
+      onActivate: () => onSelect?.(note.id),
+    })
   }
 
   return (
@@ -83,21 +71,18 @@ export function NoteListRow({
       }`}
     >
       {selectionMode && !disabled ? (
-        <button
-          type="button"
-          onClick={handleSelectionClick}
-          aria-label={selected ? '取消选择笔记' : '选择笔记'}
-          aria-pressed={selected}
-          className={`flex size-12 shrink-0 items-center justify-center rounded-xl border transition-colors ${
-            selected ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-outline-variant bg-surface-container-high text-on-surface-variant hover:border-primary hover:text-primary'
-          }`}
-        >
-          {selected ? <Check className="size-5" /> : <FileText className="size-5" strokeWidth={1.8} />}
-        </button>
+        <SelectionCheckbox
+          variant="tile"
+          selected={selected}
+          entityLabel="笔记"
+          idleIcon={FileText}
+          idleIconProps={{ className: 'size-5', strokeWidth: 1.8 }}
+          onToggle={() => onToggleSelection?.(note.id)}
+        />
       ) : (
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-high text-primary shadow-sm">
+        <SelectionTileIdle>
           <FileText className="size-5" strokeWidth={1.8} />
-        </div>
+        </SelectionTileIdle>
       )}
 
       <div className="min-w-0 flex-1">

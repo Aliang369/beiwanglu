@@ -1,7 +1,8 @@
-import { Image, RotateCcw, Timer, Trash2 } from 'lucide-react'
+import { Image, Timer } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
 import { formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
 import { getNoteTagNames } from '../../../shared/notes/noteSelectors'
+import { TrashNoteActions } from './TrashNoteActions'
 
 interface TrashNoteCardProps {
   note: Note
@@ -9,7 +10,6 @@ interface TrashNoteCardProps {
   onRestore?: (noteId: string) => void
   onPermanentlyDelete?: () => void
 }
-
 
 export function TrashNoteCard({ note, index, onRestore, onPermanentlyDelete }: TrashNoteCardProps) {
   const tags = getNoteTagNames(note, ['已删除'])
@@ -56,21 +56,11 @@ export function TrashNoteCard({ note, index, onRestore, onPermanentlyDelete }: T
         ))}
       </div>
 
-      <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-outline-variant/30 pt-3 transition-colors group-hover:border-outline-variant/60">
-        <button
-          type="button"
-          onClick={() => onRestore?.(note.id)}
-          className="flex shrink-0 items-center gap-1 rounded-full bg-primary-container/20 px-3 py-1.5 font-label-md text-label-md text-on-primary-fixed-variant transition-colors hover:bg-primary-container/40"
-        >
-          <RotateCcw className="size-4" /> 恢复
-        </button>
-        <button
-          type="button"
-          onClick={() => onPermanentlyDelete?.()}
-          className="flex shrink-0 items-center gap-1 rounded-full bg-error-container/20 px-3 py-1.5 font-label-md text-label-md text-error transition-colors hover:bg-error-container/40"
-        >
-          <Trash2 className="size-4" /> 永久删除
-        </button>
+      <div className="mt-auto border-t border-outline-variant/30 pt-3 transition-colors group-hover:border-outline-variant/60">
+        <TrashNoteActions
+          onRestore={onRestore ? () => onRestore(note.id) : undefined}
+          onPermanentlyDelete={onPermanentlyDelete}
+        />
       </div>
     </article>
   )

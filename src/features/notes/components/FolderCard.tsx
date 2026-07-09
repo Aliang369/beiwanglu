@@ -1,8 +1,8 @@
-import { Check, CheckSquare, Edit3, FolderInput, Trash2 } from 'lucide-react'
+import { CheckSquare, Edit3, FolderInput, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { FolderIcon } from '../../../shared/types/folder'
 import { getFolderIcon } from '../../../shared/notes/folderIcons'
-import { HoverActionMenu, type HoverMenuItem } from '../../../shared/ui'
+import { handleSelectableActivate, HoverActionMenu, SelectionCheckbox, type HoverMenuItem } from '../../../shared/ui'
 import { DashedCreate } from './DashedCreate'
 
 export interface FolderItem {
@@ -46,14 +46,12 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
     <div className={`group relative h-full ${menuOpen ? 'z-30' : 'z-0'} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
       <article
         onClick={() => {
-          if (disabled) {
-            return
-          }
-          if (selectionMode) {
-            onToggle(folder.id)
-            return
-          }
-          onOpen?.(folder.id)
+          handleSelectableActivate({
+            disabled,
+            selectionMode,
+            onToggle: () => onToggle(folder.id),
+            onActivate: () => onOpen?.(folder.id),
+          })
         }}
         aria-disabled={disabled || undefined}
         aria-selected={selectionMode ? selected : undefined}
@@ -86,22 +84,12 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
       </article>
 
       {selectionMode && !disabled ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggle(folder.id)
-          }}
-          aria-label={selected ? '取消选择文件夹' : '选择文件夹'}
-          aria-pressed={selected}
-          className={`absolute top-3 right-3 z-50 flex size-8 items-center justify-center rounded-full transition-colors ${
-            selected
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'border-2 border-outline-variant bg-surface-container-lowest/85 text-on-surface-variant backdrop-blur-md hover:border-primary hover:text-primary'
-          }`}
-        >
-          {selected ? <Check className="size-4" /> : null}
-        </button>
+        <SelectionCheckbox
+          variant="badge"
+          selected={selected}
+          entityLabel="文件夹"
+          onToggle={() => onToggle(folder.id)}
+        />
       ) : !selectionMode && !disabled ? (
         <div className="absolute top-3 right-3 z-50">
           <FolderMoreControl

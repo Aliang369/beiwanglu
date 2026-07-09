@@ -1,8 +1,8 @@
-import { Check, CheckSquare, Copy, FolderInput, Image, Star, Trash2 } from 'lucide-react'
-import { useState, type MouseEvent } from 'react'
+import { CheckSquare, Copy, FolderInput, Image, Star, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
-import { HoverActionMenu, type HoverMenuItem } from '../../../shared/ui'
+import { handleSelectableActivate, HoverActionMenu, SelectionCheckbox, type HoverMenuItem } from '../../../shared/ui'
 
 interface NoteCardProps {
   note: Note
@@ -29,39 +29,23 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
   }
 
   function handleCardClick() {
-    if (disabled) {
-      return
-    }
-
-    if (selectionMode) {
-      onToggleSelection?.(note.id)
-      return
-    }
-
-    onSelect?.(note.id)
+    handleSelectableActivate({
+      disabled,
+      selectionMode,
+      onToggle: () => onToggleSelection?.(note.id),
+      onActivate: () => onSelect?.(note.id),
+    })
   }
 
-  function handleSelectionClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    if (disabled) {
-      return
-    }
-    onToggleSelection?.(note.id)
-  }
-
-  const selectionControl = selectionMode && !disabled ? (
-    <button
-      type="button"
-      onClick={handleSelectionClick}
-      aria-label={selected ? '取消选择笔记' : '选择笔记'}
-      aria-pressed={selected}
-      className={`absolute top-3 right-3 z-50 flex size-8 items-center justify-center rounded-full transition-colors ${
-        selected ? 'bg-primary text-on-primary shadow-sm' : 'border-2 border-outline-variant bg-surface-container-lowest/85 text-on-surface-variant backdrop-blur-md hover:border-primary hover:text-primary'
-      }`}
-    >
-      {selected ? <Check className="size-4" /> : null}
-    </button>
-  ) : null
+  const selectionControl =
+    selectionMode && !disabled ? (
+      <SelectionCheckbox
+        variant="badge"
+        selected={selected}
+        entityLabel="笔记"
+        onToggle={() => onToggleSelection?.(note.id)}
+      />
+    ) : null
 
   const cardMoreControl = selectionMode || disabled ? null : (
     <CardMoreControl
