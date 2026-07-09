@@ -19,7 +19,7 @@
 | 搜索 | 可用 | 按标题、正文、摘要和标签名称过滤。 | `Toolbar.tsx`, `noteSelectors.ts` |
 | 标签过滤 | 可用 | 根据标签 id 过滤可见笔记。 | `TagFilterBar.tsx`, `noteSelectors.ts` |
 | 收藏 | 可用 | 支持收藏/取消收藏并在收藏视图查看。 | `FavoritesView.tsx`, `notesStore.ts` |
-| 回收站 | 部分可用 | 支持移入回收站和查看；恢复、永久删除、清空回收站尚未实现。 | `TrashView.tsx`, `notesStore.ts` |
+| 回收站 | 可用 | 支持移入、恢复、永久删除、清空；30 天到期自动清理；剩余天数动态展示，最后 3 天高亮。 | `TrashView.tsx`, `notesStore.ts`, `noteDomain.ts` |
 | 文件夹浏览 | 部分可用 | 可根据笔记 `folderId` 聚合展示。 | `FoldersView.tsx` |
 | 自定义文件夹 | 部分可用 | 有新建弹窗和运行时状态，但尚未形成独立持久化模型。 | `CreateFolderDialog.tsx`, `FoldersView.tsx` |
 | 消息中心 | 原型 | 使用 mock 消息；已读状态、通知设置、后端同步待接入。 | `MessageCenterView.tsx`, `messageMockData.ts` |

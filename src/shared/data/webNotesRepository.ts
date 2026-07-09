@@ -1,6 +1,6 @@
 import { mockNotes } from './mockNotes'
 import type { NotesRepository } from './notesRepository'
-import { applyNotePatch, buildNewNote, sortNotesByUpdatedAt } from '../notes/noteDomain'
+import { applyNotePatch, buildNewNote, normalizeNotes, purgeExpiredTrashNotes, sortNotesByUpdatedAt } from '../notes/noteDomain'
 import type { Note, NoteDraft } from '../types/note'
 
 const STORAGE_KEY = 'beiwanglu.notes.v1'
@@ -13,7 +13,8 @@ export class WebNotesRepository implements NotesRepository {
   }
 
   async list() {
-    return sortNotesByUpdatedAt(this.read())
+    const notes = this.purgeAndPersist(this.read())
+    return sortNotesByUpdatedAt(notes)
   }
 
   async create(draft: NoteDraft) {
@@ -23,7 +24,10 @@ export class WebNotesRepository implements NotesRepository {
     return note
   }
 
-  async update(id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted'>>) {
+  async update(
+    id: string,
+    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt'>>,
+  ) {
     const notes = this.read()
     const index = notes.findIndex((note) => note.id === id)
 
@@ -37,6 +41,17 @@ export class WebNotesRepository implements NotesRepository {
     return updated
   }
 
+  async delete(id: string) {
+    const notes = this.read()
+    const nextNotes = notes.filter((note) => note.id !== id)
+
+    if (nextNotes.length === notes.length) {
+      throw new Error(`Note not found: ${id}`)
+    }
+
+    this.write(nextNotes)
+  }
+
   private createId() {
     return window.crypto.randomUUID()
   }
@@ -46,15 +61,25 @@ export class WebNotesRepository implements NotesRepository {
 
     if (!raw) {
       this.write(mockNotes)
-      return mockNotes
+      return normalizeNotes(mockNotes)
     }
 
     try {
-      return this.withoutTrashTestNote(JSON.parse(raw) as Note[])
+      return normalizeNotes(this.withoutTrashTestNote(JSON.parse(raw) as Note[]))
     } catch {
       this.write(mockNotes)
-      return mockNotes
+      return normalizeNotes(mockNotes)
     }
+  }
+
+  private purgeAndPersist(notes: Note[]) {
+    const nextNotes = purgeExpiredTrashNotes(notes)
+
+    if (nextNotes.length !== notes.length) {
+      this.write(nextNotes)
+    }
+
+    return nextNotes
   }
 
   private withoutTrashTestNote(notes: Note[]) {

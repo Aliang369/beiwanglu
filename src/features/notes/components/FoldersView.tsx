@@ -32,7 +32,7 @@ interface FoldersViewProps {
   onSelectNote?: (noteId: string) => void
 }
 
-const folderNames: Record<string, { name: string; icon: FolderItem['icon'] }> = {
+export const folderNames: Record<string, { name: string; icon: FolderItem['icon'] }> = {
   inbox: { name: '收件箱', icon: 'folder' },
   work: { name: '工作项目', icon: 'work' },
   study: { name: '学习笔记', icon: 'study' },

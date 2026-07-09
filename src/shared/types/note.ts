@@ -17,6 +17,8 @@ export interface Note {
   folderId: string | null
   isFavorite: boolean
   isDeleted: boolean
+  /** ISO 时间；进入废纸篓时写入，恢复时清空。 */
+  deletedAt: string | null
   createdAt: string
   updatedAt: string
 }

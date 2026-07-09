@@ -1,21 +1,22 @@
 import { RotateCcw, Trash2 } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
+import { formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
 
 interface TrashNoteListItemProps {
   note: Note
-  index: number
+  onRestore?: (noteId: string) => void
+  onPermanentlyDelete?: () => void
 }
-
-const purgeLabels = ['2天后清除', '15天后清除', '28天后清除', '29天后清除']
 
 function trashTags(note: Note) {
   return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : ['已删除']
 }
 
-export function TrashNoteListItem({ note, index }: TrashNoteListItemProps) {
+export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: TrashNoteListItemProps) {
   const tags = trashTags(note)
-  const purgeLabel = purgeLabels[index % purgeLabels.length]
-  const urgent = index === 0
+  const daysRemaining = getTrashDaysRemaining(note)
+  const purgeLabel = formatTrashPurgeLabel(daysRemaining)
+  const urgent = isTrashPurgeUrgent(daysRemaining)
 
   return (
     <article className="group flex flex-col gap-4 rounded-xl border border-dashed border-outline-variant/60 bg-white p-5 opacity-80 transition-all duration-300 hover:border-solid hover:border-outline-variant hover:opacity-100 hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
@@ -45,16 +46,21 @@ export function TrashNoteListItem({ note, index }: TrashNoteListItemProps) {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 self-stretch sm:self-auto">
-        {/* TODO: 接入恢复笔记逻辑。 */}
-        <button type="button" className="flex shrink-0 items-center gap-1 rounded-full bg-primary-container/20 px-3 py-1.5 font-label-md text-label-md text-on-primary-fixed-variant transition-colors hover:bg-primary-container/40">
+        <button
+          type="button"
+          onClick={() => onRestore?.(note.id)}
+          className="flex shrink-0 items-center gap-1 rounded-full bg-primary-container/20 px-3 py-1.5 font-label-md text-label-md text-on-primary-fixed-variant transition-colors hover:bg-primary-container/40"
+        >
           <RotateCcw className="size-4" /> 恢复
         </button>
-        {/* TODO: 接入永久删除逻辑。 */}
-        <button type="button" className="flex shrink-0 items-center gap-1 rounded-full bg-error-container/20 px-3 py-1.5 font-label-md text-label-md text-error transition-colors hover:bg-error-container/40">
+        <button
+          type="button"
+          onClick={() => onPermanentlyDelete?.()}
+          className="flex shrink-0 items-center gap-1 rounded-full bg-error-container/20 px-3 py-1.5 font-label-md text-label-md text-error transition-colors hover:bg-error-container/40"
+        >
           <Trash2 className="size-4" /> 永久删除
         </button>
       </div>
-
     </article>
   )
 }
