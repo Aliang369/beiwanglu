@@ -191,7 +191,9 @@ export function FoldersView({
   }
 
   function restoreNoteSelectionBeforeSelectAll() {
-    noteSelection.restoreBeforeSelectAll()
+    if (noteSelection.restoreBeforeSelectAll() === 'cleared') {
+      setBulkMoveNoteOpen(false)
+    }
   }
 
   async function handleBulkMoveNotes(folderId: string | null) {
