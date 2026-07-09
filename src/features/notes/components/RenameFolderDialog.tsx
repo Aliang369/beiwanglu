@@ -75,9 +75,6 @@ export function RenameFolderDialog({ initialName, existingNames = [], onClose, o
           </div>
 
           <div className="px-6 py-4">
-            <label htmlFor="rename-folder-name" className="mb-2 block font-label-md text-label-md text-on-surface">
-              文件夹名称
-            </label>
             <input
               ref={inputRef}
               id="rename-folder-name"
@@ -91,6 +88,7 @@ export function RenameFolderDialog({ initialName, existingNames = [], onClose, o
               }}
               maxLength={40}
               placeholder="例如：工作项目"
+              aria-label="文件夹名称"
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
               className={`w-full rounded-xl border bg-surface px-4 py-3 font-body-md text-body-md text-on-surface transition-all duration-200 placeholder:text-outline focus:outline-none focus:ring-2 ${
