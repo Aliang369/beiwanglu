@@ -228,8 +228,8 @@ export function FoldersView({
   const createLabel = activeFolder && !isActiveChild ? '新建子文件夹' : '新建文件夹'
   const deletingNames = (deletingFolderIds ?? []).map((id) => folderItemMap.get(id)?.name ?? id)
 
-  const listSection = (items: FolderItem[], allowCreate: boolean) => {
-    if (viewMode === 'list') {
+  const listSection = (items: FolderItem[], allowCreate: boolean, mode: NoteViewMode = viewMode) => {
+    if (mode === 'list') {
       return (
         <div className="space-y-4 pb-24">
           {items.map((folder) => (
@@ -272,6 +272,105 @@ export function FoldersView({
     )
   }
 
+  const renderActiveFolderContent = () => {
+    const showChildren = !isActiveChild
+    const foldersToShow = showChildren ? childFolderItems : []
+    const hasFolders = foldersToShow.length > 0
+    const hasNotes = activeFolderNotes.length > 0
+    const allowCreateChild = showChildren && !selectionMode
+    const isEmpty = !hasFolders && !hasNotes
+
+    if (isEmpty) {
+      if (hasSearch) {
+        return (
+          <EmptyState
+            icon={SearchX}
+            title="没有找到相关内容"
+            description={`这个文件夹中没有匹配“${trimmedQuery}”的子文件夹或笔记。`}
+            variant="search"
+            primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined}
+            compact
+          />
+        )
+      }
+
+      if (hasFilter) {
+        return (
+          <EmptyState
+            icon={Tags}
+            title="当前筛选没有结果"
+            description="这个文件夹中没有符合当前标签筛选的内容。"
+            variant="filter"
+            primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined}
+            compact
+          />
+        )
+      }
+
+      return (
+        <div className="pb-24">
+          <EmptyState
+            icon={FileText}
+            title="这个文件夹还是空的"
+            description={showChildren ? '可以在这里新建子文件夹，或把笔记归类进来。' : '归类到这里的笔记会显示在这个页面。'}
+            variant="folders"
+            compact
+            primaryAction={showChildren ? { label: createLabel, onClick: () => setCreateOpen(true) } : undefined}
+          />
+        </div>
+      )
+    }
+
+    // 子文件夹与笔记作为同类混排：先文件夹，后笔记；同一网格/列表，无分区标题
+    if (detailViewMode === 'list') {
+      return (
+        <div className="space-y-4 pb-24">
+          {foldersToShow.map((folder) => (
+            <FolderListItem
+              key={`folder-${folder.id}`}
+              folder={folder}
+              selectionMode={selectionMode}
+              selected={selectedFolderIds.includes(folder.id)}
+              onToggle={toggleFolder}
+              onOpen={openFolder}
+              onStartSelection={startSelection}
+              onRename={setRenamingFolderId}
+              onMove={(folderId) => openMove([folderId])}
+              onDelete={(folderId) => openDelete([folderId])}
+            />
+          ))}
+          {activeFolderNotes.map((note) => (
+            <FolderNoteListRow key={`note-${note.id}`} note={note} onSelect={onSelectNote} />
+          ))}
+          {allowCreateChild ? <AddFolderListItem label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
+        </div>
+      )
+    }
+
+    return (
+      <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {foldersToShow.map((folder) => (
+          <FolderCard
+            key={`folder-${folder.id}`}
+            folder={folder}
+            selectionMode={selectionMode}
+            selected={selectedFolderIds.includes(folder.id)}
+            onToggle={toggleFolder}
+            onStartSelection={startSelection}
+            onOpen={openFolder}
+            onRename={setRenamingFolderId}
+            onMove={(folderId) => openMove([folderId])}
+            onDelete={(folderId) => openDelete([folderId])}
+          />
+        ))}
+        {activeFolderNotes.map((note) => (
+          <NoteCard key={`note-${note.id}`} note={note} visual={note.id === 'design-inspo'} onSelect={onSelectNote} />
+        ))}
+        {showChildren ? <AddFolderCard disabled={selectionMode} label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
+      </div>
+    )
+  }
+
   if (activeFolder) {
     return (
       <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
@@ -281,8 +380,8 @@ export function FoldersView({
               <h1 className="mb-2 font-headline-lg text-headline-lg text-on-surface">{activeFolder.name}</h1>
               <p className="font-body-md text-body-md text-on-surface-variant">
                 {hasSearch || hasFilter
-                  ? `当前显示 ${activeFolderNotes.length} / 共 ${activeFolderTotalNotes.length} 篇笔记`
-                  : `共 ${activeFolderTotalNotes.length} 篇笔记 · ${childFolderItems.length} 个子文件夹 · ${activeFolder.updatedLabel}`}
+                  ? `当前显示 ${activeFolderNotes.length + (!isActiveChild ? childFolderItems.length : 0)} 项`
+                  : `共 ${activeFolderTotalNotes.length} 篇笔记${ !isActiveChild && childFolderItems.length > 0 ? ` · ${childFolderItems.length} 个子文件夹` : ''} · ${activeFolder.updatedLabel}`}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -316,37 +415,7 @@ export function FoldersView({
             />
           ) : null}
 
-          {!isActiveChild && (childFolderItems.length > 0 || !selectionMode) ? (
-            <section className="mb-10">
-              <h2 className="mb-4 font-headline-sm text-headline-sm text-on-surface">子文件夹</h2>
-              {listSection(childFolderItems, !isActiveChild)}
-            </section>
-          ) : null}
-
-          <section>
-            <h2 className="mb-4 font-headline-sm text-headline-sm text-on-surface">笔记</h2>
-            {activeFolderNotes.length === 0 ? (
-              hasSearch ? (
-                <EmptyState icon={SearchX} title="没有找到相关笔记" description={`这个文件夹中没有匹配“${trimmedQuery}”的内容。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} compact />
-              ) : hasFilter ? (
-                <EmptyState icon={Tags} title="当前筛选没有结果" description="这个文件夹中没有符合当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} compact />
-              ) : (
-                <EmptyState icon={FileText} title="这个文件夹还没有笔记" description="归类到这里的笔记会显示在这个页面。" variant="folders" compact />
-              )
-            ) : detailViewMode === 'grid' ? (
-              <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {activeFolderNotes.map((note) => (
-                  <NoteCard key={note.id} note={note} visual={note.id === 'design-inspo'} onSelect={onSelectNote} />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4 pb-24">
-                {activeFolderNotes.map((note) => (
-                  <FolderNoteListRow key={note.id} note={note} onSelect={onSelectNote} />
-                ))}
-              </div>
-            )}
-          </section>
+          {renderActiveFolderContent()}
         </div>
 
         {createOpen ? <CreateFolderDialog existingNames={existingNames} onClose={() => setCreateOpen(false)} onCreate={(name) => void handleCreate(name)} /> : null}
