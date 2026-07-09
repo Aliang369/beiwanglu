@@ -215,6 +215,8 @@ export function NotesHome() {
               onToggleFavorite={(noteId) => void toggleFavorite(noteId)}
               onMoveToTrash={(noteId) => void moveToTrash(noteId)}
               onRequestMoveToFolder={setMovingNoteId}
+              folderOptions={folderOptions}
+              onMoveToFolder={(noteId, folderId) => void moveToFolder(noteId, folderId)}
             />
           </main>
         )}

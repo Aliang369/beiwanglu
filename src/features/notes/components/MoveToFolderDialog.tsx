@@ -9,17 +9,27 @@ export interface MoveToFolderOption {
 }
 
 interface MoveToFolderDialogProps {
-  note: Note
+  note?: Note
+  title?: string
+  description?: string
+  initialFolderId?: string | null
+  currentFolderId?: string | null
+  showCurrent?: boolean
+  disableWhenUnchanged?: boolean
   folderOptions: MoveToFolderOption[]
   onClose: () => void
   onMove: (folderId: string | null) => void | Promise<void>
 }
 
-export function MoveToFolderDialog({ note, folderOptions, onClose, onMove }: MoveToFolderDialogProps) {
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(note.folderId)
+export function MoveToFolderDialog({ note, title = '移动到文件夹', description, initialFolderId, currentFolderId, showCurrent, disableWhenUnchanged = true, folderOptions, onClose, onMove }: MoveToFolderDialogProps) {
+  const resolvedInitialFolderId = initialFolderId ?? note?.folderId ?? null
+  const resolvedCurrentFolderId = currentFolderId ?? note?.folderId ?? null
+  const dialogDescription = description ?? `选择“${note?.title || '未命名笔记'}”的目标文件夹。`
+  const shouldShowCurrent = showCurrent ?? Boolean(note)
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(resolvedInitialFolderId)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const firstOptionRef = useRef<HTMLButtonElement>(null)
-  const isUnchanged = selectedFolderId === note.folderId
+  const isUnchanged = disableWhenUnchanged && selectedFolderId === resolvedCurrentFolderId
 
   useEffect(() => {
     firstOptionRef.current?.focus()
@@ -64,8 +74,8 @@ export function MoveToFolderDialog({ note, folderOptions, onClose, onMove }: Mov
               <FolderInput className="size-5" />
             </div>
             <div>
-              <h2 id="move-folder-title" className="font-headline-sm text-headline-sm text-on-surface">移动到文件夹</h2>
-              <p className="mt-0.5 line-clamp-1 font-label-sm text-label-sm text-on-surface-variant">选择“{note.title || '未命名笔记'}”的目标文件夹。</p>
+              <h2 id="move-folder-title" className="font-headline-sm text-headline-sm text-on-surface">{title}</h2>
+              <p className="mt-0.5 line-clamp-1 font-label-sm text-label-sm text-on-surface-variant">{dialogDescription}</p>
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭" className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface">
@@ -77,7 +87,7 @@ export function MoveToFolderDialog({ note, folderOptions, onClose, onMove }: Mov
           <div className="space-y-2" role="radiogroup" aria-label="目标文件夹">
             {folderOptions.map((folder, index) => {
               const selected = selectedFolderId === folder.id
-              const current = note.folderId === folder.id
+              const current = shouldShowCurrent && resolvedCurrentFolderId === folder.id
 
               return (
                 <button

@@ -1,4 +1,4 @@
-import { CheckSquare, Copy, FolderInput, Image, MoreVertical, Star, Trash2 } from 'lucide-react'
+import { Check, CheckSquare, Copy, FolderInput, Image, MoreVertical, Star, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
@@ -11,15 +11,47 @@ interface NoteCardProps {
   onToggleFavorite?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
   onRequestMoveToFolder?: (noteId: string) => void
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelection?: (noteId: string) => void
+  onStartSelection?: (noteId: string) => void
 }
 
-export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: NoteCardProps) {
+export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, selectionMode = false, selected = false, onToggleSelection, onStartSelection }: NoteCardProps) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
   function closeMenu() {
     setMenuOpen(false)
   }
+
+  function handleCardClick() {
+    if (selectionMode) {
+      onToggleSelection?.(note.id)
+      return
+    }
+
+    onSelect?.(note.id)
+  }
+
+  function handleSelectionClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onToggleSelection?.(note.id)
+  }
+
+  const selectionControl = selectionMode ? (
+    <button
+      type="button"
+      onClick={handleSelectionClick}
+      aria-label={selected ? '取消选择笔记' : '选择笔记'}
+      aria-pressed={selected}
+      className={`absolute top-3 right-3 z-50 flex size-8 items-center justify-center rounded-full transition-colors ${
+        selected ? 'bg-primary text-on-primary shadow-sm' : 'border-2 border-outline-variant bg-surface-container-lowest/85 text-on-surface-variant backdrop-blur-md hover:border-primary hover:text-primary'
+      }`}
+    >
+      {selected ? <Check className="size-4" /> : null}
+    </button>
+  ) : null
 
   const cardMoreControl = (
     <CardMoreControl
@@ -30,13 +62,20 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
       onToggleFavorite={onToggleFavorite}
       onMoveToTrash={onMoveToTrash}
       onRequestMoveToFolder={onRequestMoveToFolder}
+      onStartSelection={onStartSelection ? () => onStartSelection(note.id) : undefined}
     />
   )
 
   if (visual) {
     return (
       <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'}`}>
-        <article onClick={() => onSelect?.(note.id)} className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-outline-variant/50 bg-surface-bright transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card">
+        <article
+          onClick={handleCardClick}
+          aria-selected={selectionMode ? selected : undefined}
+          className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card ${
+            selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'
+          }`}
+        >
           <div className="relative h-32 w-full overflow-hidden rounded-t-xl bg-surface-container-low">
             <img src="https://placewaifu.com/image/800/450" alt="设计灵感收集封面" className="h-full w-full object-cover" />
             <div className="absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
@@ -57,7 +96,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
             </div>
           </div>
         </article>
-        {cardMoreControl}
+        {selectionMode ? selectionControl : cardMoreControl}
       </div>
     )
   }
@@ -65,10 +104,11 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
   return (
     <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${featured ? 'col-span-1 row-span-2 md:col-span-2' : ''}`}>
       <article
-        onClick={() => onSelect?.(note.id)}
-        className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-xl border border-outline-variant/50 bg-surface-bright transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card ${
+        onClick={handleCardClick}
+        aria-selected={selectionMode ? selected : undefined}
+        className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card ${
         featured ? 'p-6' : 'p-5'
-      }`}
+      } ${selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'}`}
       >
         {featured ? (
           <div className="absolute top-0 right-0 size-32 rounded-bl-full bg-primary-container/10 transition-transform group-hover:scale-110" />
@@ -93,7 +133,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
           <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
         </div>
       </article>
-      {cardMoreControl}
+      {selectionMode ? selectionControl : cardMoreControl}
     </div>
   )
 }
@@ -110,7 +150,7 @@ function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
   )
 }
 
-function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void }) {
+function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onStartSelection }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onStartSelection?: () => void }) {
   function handleToggle(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onToggle(!open)
@@ -124,7 +164,7 @@ function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMo
       onMouseLeave={() => onToggle(false)}
     >
       <CardMoreButton open={open} onClick={handleToggle} />
-      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} onRequestMoveToFolder={onRequestMoveToFolder} />
+      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} onRequestMoveToFolder={onRequestMoveToFolder} onStartSelection={onStartSelection} />
     </div>
   )
 }
@@ -143,7 +183,7 @@ function CardMoreButton({ open, onClick }: { open: boolean; onClick: (event: Mou
   )
 }
 
-function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void }) {
+function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onStartSelection }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onStartSelection?: () => void }) {
   function handleItemClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onClose()
@@ -158,6 +198,12 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash, 
   function handleMoveToFolderClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onRequestMoveToFolder?.(note.id)
+    onClose()
+  }
+
+  function handleStartSelectionClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onStartSelection?.()
     onClose()
   }
 
@@ -185,7 +231,7 @@ function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash, 
           <FolderInput className="size-4" />
           <span>移动到文件夹</span>
         </button>
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+        <button type="button" onClick={handleStartSelectionClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <CheckSquare className="size-4" />
           <span>多选</span>
         </button>
