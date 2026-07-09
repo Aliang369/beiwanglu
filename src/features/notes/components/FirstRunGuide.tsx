@@ -22,16 +22,11 @@ export function FirstRunGuide({ onCreateNote, onOpenHelp }: FirstRunGuideProps) 
       primaryAction={{ label: '新建第一篇笔记', onClick: onCreateNote }}
       secondaryAction={onOpenHelp ? { label: '查看帮助', onClick: onOpenHelp } : undefined}
     >
-      <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {guideItems.map(({ icon: Icon, title, description }) => (
-          <div
-            key={title}
-            className="rounded-2xl bg-surface-container-low/80 px-4 py-4 text-left transition-colors duration-200 hover:bg-surface-container"
-          >
-            <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-surface-container-lowest text-primary shadow-sm">
-              <Icon className="size-[18px]" strokeWidth={1.8} aria-hidden="true" />
-            </div>
-            <h4 className="mb-1 font-label-md text-label-md text-on-surface">{title}</h4>
+          <div key={title} className="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-5 text-left">
+            <Icon className="mb-4 size-6 text-primary" strokeWidth={1.8} aria-hidden="true" />
+            <h4 className="mb-2 font-label-md text-label-md text-on-surface">{title}</h4>
             <p className="font-body-sm text-body-sm leading-relaxed text-on-surface-variant">{description}</p>
           </div>
         ))}
