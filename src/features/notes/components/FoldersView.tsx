@@ -160,7 +160,13 @@ export function FoldersView({ notes, visibleNotes, query = '', tagId = null, onC
   if (folderItems.length === 0) {
     return (
       <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
-        <div className="mx-auto flex min-h-full max-w-container-max-width flex-col items-center justify-center">
+        <div className="mx-auto max-w-container-max-width">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <h1 className="mb-2 font-headline-lg text-headline-lg text-on-surface">我的文件夹</h1>
+              <p className="font-body-md text-body-md text-on-surface-variant">管理和整理您分类保存的笔记。</p>
+            </div>
+          </div>
           {hasSearch ? (
             <EmptyState icon={SearchX} title="没有找到相关文件夹" description={`没有匹配“${trimmedQuery}”的文件夹或笔记。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} />
           ) : hasFilter ? (
