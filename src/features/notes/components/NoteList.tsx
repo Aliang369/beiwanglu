@@ -30,6 +30,10 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
   const hasFilter = Boolean(tagId)
   const isEmpty = notes.length === 0
   const showFirstRun = totalCount === 0 && !hasSearch && !hasFilter
+  const noteActions = {
+    onToggleFavorite,
+    onMoveToTrash,
+  }
 
   return (
     <section>
@@ -91,7 +95,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
       ) : viewMode === 'list' ? (
         <div className="space-y-4 pb-24">
           {notes.map((note) => (
-            <NoteListRow key={note.id} note={note} onSelect={onSelectNote} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
+            <NoteListRow key={note.id} note={note} onSelect={onSelectNote} {...noteActions} />
           ))}
           <button
             type="button"
@@ -111,8 +115,7 @@ export function NoteList({ notes, totalCount, query = '', tagId = null, onCreate
               featured={index === 0}
               visual={note.id === 'design-inspo'}
               onSelect={onSelectNote}
-              onToggleFavorite={onToggleFavorite}
-              onMoveToTrash={onMoveToTrash}
+              {...noteActions}
             />
           ))}
           <button

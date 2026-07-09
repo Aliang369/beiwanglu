@@ -20,6 +20,17 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
     setMenuOpen(false)
   }
 
+  const cardMoreControl = (
+    <CardMoreControl
+      note={note}
+      open={menuOpen}
+      onToggle={setMenuOpen}
+      onClose={closeMenu}
+      onToggleFavorite={onToggleFavorite}
+      onMoveToTrash={onMoveToTrash}
+    />
+  )
+
   if (visual) {
     return (
       <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'}`}>
@@ -44,7 +55,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
             </div>
           </div>
         </article>
-        <CardMoreControl note={note} open={menuOpen} onToggle={setMenuOpen} onClose={closeMenu} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} />
+        {cardMoreControl}
       </div>
     )
   }
