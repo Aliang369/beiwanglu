@@ -6,6 +6,7 @@ interface FoldersSelectionBarProps {
   canMove?: boolean
   canDelete?: boolean
   onSelectAll: () => void
+  onClearSelection: () => void
   onMove: () => void
   onDelete: () => void
   onClear: () => void
@@ -17,10 +18,13 @@ export function FoldersSelectionBar({
   canMove = true,
   canDelete = true,
   onSelectAll,
+  onClearSelection,
   onMove,
   onDelete,
   onClear,
 }: FoldersSelectionBarProps) {
+  const allSelected = totalCount > 0 && selectedCount === totalCount
+
   return (
     <div className="mb-6 flex h-16 items-center justify-between rounded-xl bg-surface-container-highest px-4 shadow-sm">
       <div className="flex items-center gap-3">
@@ -37,11 +41,11 @@ export function FoldersSelectionBar({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onSelectAll}
-          disabled={selectedCount === totalCount}
+          onClick={allSelected ? onClearSelection : onSelectAll}
+          disabled={totalCount === 0}
           className="rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline"
         >
-          全选
+          {allSelected ? '取消全选' : '全选'}
         </button>
         <button
           type="button"

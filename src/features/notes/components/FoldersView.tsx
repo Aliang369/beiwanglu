@@ -409,6 +409,7 @@ export function FoldersView({
               canMove={canMoveSelected}
               canDelete={canDeleteSelected}
               onSelectAll={selectAllVisible}
+              onClearSelection={clearSelection}
               onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
               onDelete={() => openDelete(selectedVisibleIds)}
               onClear={clearSelection}
@@ -468,19 +469,6 @@ export function FoldersView({
   return (
     <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
       <div className="mx-auto max-w-container-max-width">
-        {selectionMode ? (
-          <FoldersSelectionBar
-            selectedCount={selectedVisibleIds.length}
-            totalCount={selectableItems.length}
-            canMove={canMoveSelected}
-            canDelete={canDeleteSelected}
-            onSelectAll={selectAllVisible}
-            onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
-            onDelete={() => openDelete(selectedVisibleIds)}
-            onClear={clearSelection}
-          />
-        ) : null}
-
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
             <h1 className="mb-2 font-headline-lg text-headline-lg text-on-surface">我的文件夹</h1>
@@ -488,6 +476,20 @@ export function FoldersView({
           </div>
           {selectionMode ? null : <NoteViewSwitcher value={viewMode} onChange={setViewMode} />}
         </div>
+
+        {selectionMode ? (
+          <FoldersSelectionBar
+            selectedCount={selectedVisibleIds.length}
+            totalCount={selectableItems.length}
+            canMove={canMoveSelected}
+            canDelete={canDeleteSelected}
+            onSelectAll={selectAllVisible}
+            onClearSelection={clearSelection}
+            onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
+            onDelete={() => openDelete(selectedVisibleIds)}
+            onClear={clearSelection}
+          />
+        ) : null}
 
         {visibleRootFolderItems.length === 0 && (hasSearch || hasFilter) ? (
           hasSearch ? (
