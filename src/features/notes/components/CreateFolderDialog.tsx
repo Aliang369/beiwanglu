@@ -40,7 +40,7 @@ export function CreateFolderDialog({ onClose, onCreate, existingNames = [] }: Cr
     }
 
     if (existingNames.some((existing) => existing === trimmed)) {
-      setError('已存在同名文件夹。')
+      setError('同级已存在同名文件夹。')
       inputRef.current?.focus()
       return
     }

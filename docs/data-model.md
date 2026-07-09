@@ -13,7 +13,7 @@ src/shared/data/webNotesRepository.ts
 数据存储在浏览器 `localStorage`：
 
 ```text
-beiwanglu.notes.v1
+beiwanglu.notes.v2（兼容迁移旧 key `beiwanglu.notes.v1`）
 ```
 
 首次启动或该 key 不存在时，会写入：
@@ -189,7 +189,7 @@ localStorage.removeItem('beiwanglu.notes.v1')
 
 - 没有数据版本号。
 - 没有 schema migration。
-- 没有独立 Folder 模型。
+- Folder 模型已引入（一层 parentId）。
 - 没有用户维度。
 - 没有同步或冲突解决。
 - 没有加密存储。
@@ -210,19 +210,36 @@ interface NotesStorageV2 {
 }
 ```
 
-### 引入 Folder 模型
+### Folder 模型（已落地）
 
-建议新增：
+定义位置：`src/shared/types/folder.ts`
 
 ```ts
 interface Folder {
   id: string
   name: string
-  icon?: string
+  icon: FolderIcon
+  parentId: string | null  // null = 根；非空时父级必须是根（仅一层子文件夹）
   createdAt: string
   updatedAt: string
 }
 ```
+
+存储结构：
+
+```ts
+interface NotesStorageV2 {
+  version: 2
+  notes: Note[]
+  folders: Folder[]
+  updatedAt: string
+}
+```
+
+规则：
+- `inbox` 为受保护文件夹，不可删除、不可移出根级。
+- 删除文件夹会删除其直接子文件夹，并将其中笔记移入废纸篓。
+- 默认 seed：`inbox` / `work` / `study` / `personal`。
 
 ### 替换为 SQLite
 

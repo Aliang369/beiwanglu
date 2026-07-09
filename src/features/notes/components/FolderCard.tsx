@@ -1,12 +1,17 @@
 import { BookOpen, BriefcaseBusiness, Check, CheckSquare, Edit3, Folder, FolderInput, Lightbulb, MoreVertical, Plane, Plus, ReceiptText, Trash2, Utensils } from 'lucide-react'
 import { useState, type ComponentType, type MouseEvent } from 'react'
+import type { FolderIcon } from '../../../shared/types/folder'
 
 export interface FolderItem {
   id: string
   name: string
   noteCount: number
+  childCount?: number
+  visibleNoteCount?: number
   updatedLabel: string
-  icon: 'work' | 'study' | 'travel' | 'ideas' | 'recipes' | 'finance' | 'folder'
+  icon: FolderIcon
+  parentId?: string | null
+  protected?: boolean
 }
 
 interface FolderCardProps {
@@ -17,9 +22,11 @@ interface FolderCardProps {
   onStartSelection?: (folderId: string) => void
   onOpen?: (folderId: string) => void
   onRename?: (folderId: string) => void
+  onMove?: (folderId: string) => void
+  onDelete?: (folderId: string) => void
 }
 
-const folderIcons: Record<FolderItem['icon'], ComponentType<{ className?: string }>> = {
+const folderIcons: Record<FolderIcon, ComponentType<{ className?: string }>> = {
   work: BriefcaseBusiness,
   study: BookOpen,
   travel: Plane,
@@ -29,7 +36,7 @@ const folderIcons: Record<FolderItem['icon'], ComponentType<{ className?: string
   folder: Folder,
 }
 
-export function FolderCard({ folder, selectionMode, selected, onToggle, onStartSelection, onOpen, onRename }: FolderCardProps) {
+export function FolderCard({ folder, selectionMode, selected, onToggle, onStartSelection, onOpen, onRename, onMove, onDelete }: FolderCardProps) {
   const Icon = folderIcons[folder.icon]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -37,15 +44,41 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
     setMenuOpen(false)
   }
 
+  const countLabel = (folder.childCount ?? 0) > 0
+    ? `${folder.noteCount} 篇笔记 · ${folder.childCount} 个子文件夹`
+    : `${folder.noteCount} 篇笔记`
+
   return (
-    <article
-      onClick={() => (selectionMode ? onToggle(folder.id) : onOpen?.(folder.id))}
-      className={`group relative flex cursor-pointer flex-col rounded-xl p-5 transition-all ${menuOpen ? 'z-30' : 'z-0'} ${
-        selected
-          ? 'border-2 border-primary bg-inverse-on-surface shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20'
-          : 'border border-outline-variant bg-surface-container-lowest shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-primary-fixed-dim hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]'
-      }`}
-    >
+    <div className={`group relative h-full ${menuOpen ? 'z-30' : 'z-0'}`}>
+      <article
+        onClick={() => (selectionMode ? onToggle(folder.id) : onOpen?.(folder.id))}
+        aria-selected={selectionMode ? selected : undefined}
+        className={`flex h-full min-h-44 cursor-pointer flex-col rounded-xl p-5 transition-all ${
+          selected
+            ? 'border-2 border-primary bg-inverse-on-surface shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20'
+            : 'border border-outline-variant bg-surface-container-lowest shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-primary-fixed-dim hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]'
+        }`}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div
+            className={`flex size-12 shrink-0 items-center justify-center rounded-lg transition-colors ${
+              selected ? 'bg-primary/10 text-primary' : 'bg-surface-container-highest text-primary group-hover:bg-primary-container group-hover:text-on-primary'
+            }`}
+          >
+            <Icon className="size-6" />
+          </div>
+          {/* 与笔记卡片一致：预留右上角菜单/选择控件空间 */}
+          <div className="size-8 shrink-0" />
+        </div>
+
+        <h3 className="mb-2 line-clamp-2 min-h-[2.75rem] font-headline-sm text-headline-sm text-on-surface">{folder.name}</h3>
+
+        <div className={`mt-auto flex items-end justify-between gap-3 pt-4 ${selected ? 'text-primary' : 'text-on-surface-variant'}`}>
+          <p className="min-w-0 flex-1 truncate font-label-sm text-label-sm opacity-90">{countLabel}</p>
+          <p className="shrink-0 font-label-sm text-label-sm text-outline">{folder.updatedLabel}</p>
+        </div>
+      </article>
+
       {selectionMode ? (
         <button
           type="button"
@@ -53,34 +86,31 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
             event.stopPropagation()
             onToggle(folder.id)
           }}
-          className={`absolute right-4 top-4 z-10 flex size-6 items-center justify-center rounded-full transition-colors ${
-            selected ? 'bg-primary text-on-primary shadow-sm' : 'border-2 border-outline-variant bg-surface group-hover:border-outline'
+          aria-label={selected ? '取消选择文件夹' : '选择文件夹'}
+          aria-pressed={selected}
+          className={`absolute top-3 right-3 z-50 flex size-8 items-center justify-center rounded-full transition-colors ${
+            selected
+              ? 'bg-primary text-on-primary shadow-sm'
+              : 'border-2 border-outline-variant bg-surface-container-lowest/85 text-on-surface-variant backdrop-blur-md hover:border-primary hover:text-primary'
           }`}
         >
           {selected ? <Check className="size-4" /> : null}
         </button>
       ) : (
-        <FolderMoreControl
-          open={menuOpen}
-          onToggle={setMenuOpen}
-          onClose={closeMenu}
-          onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
-          onRename={onRename ? () => onRename(folder.id) : undefined}
-        />
+        <div className="absolute top-3 right-3 z-50">
+          <FolderMoreControl
+            open={menuOpen}
+            onToggle={setMenuOpen}
+            onClose={closeMenu}
+            protectedFolder={folder.protected}
+            onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
+            onRename={onRename ? () => onRename(folder.id) : undefined}
+            onMove={onMove ? () => onMove(folder.id) : undefined}
+            onDelete={onDelete ? () => onDelete(folder.id) : undefined}
+          />
+        </div>
       )}
-
-      <div
-        className={`mb-4 flex size-12 items-center justify-center rounded-lg transition-colors ${
-          selected ? 'bg-primary/10 text-primary' : 'bg-surface-container-highest text-primary group-hover:bg-primary-container group-hover:text-on-primary'
-        }`}
-      >
-        <Icon className="size-6" />
-      </div>
-      <h3 className="mb-1 truncate pr-8 font-headline-sm text-headline-sm text-on-surface">{folder.name}</h3>
-      <p className={`font-label-sm text-label-sm ${selected ? 'text-primary opacity-80' : 'text-on-surface-variant'}`}>
-        {folder.noteCount} 篇笔记 · {folder.updatedLabel}
-      </p>
-    </article>
+    </div>
   )
 }
 
@@ -90,6 +120,9 @@ export function FolderMoreControl({
   onClose,
   onStartSelection,
   onRename,
+  onMove,
+  onDelete,
+  protectedFolder = false,
   variant = 'card',
 }: {
   open: boolean
@@ -97,6 +130,9 @@ export function FolderMoreControl({
   onClose: () => void
   onStartSelection?: () => void
   onRename?: () => void
+  onMove?: () => void
+  onDelete?: () => void
+  protectedFolder?: boolean
   variant?: 'card' | 'inline'
 }) {
   function handleToggle(event: MouseEvent<HTMLButtonElement>) {
@@ -106,7 +142,7 @@ export function FolderMoreControl({
 
   return (
     <div
-      className={`z-30 w-max ${variant === 'card' ? 'absolute right-4 top-4' : 'relative'}`}
+      className={`z-30 w-max ${variant === 'card' ? 'relative' : 'relative'}`}
       onClick={(event) => event.stopPropagation()}
       onMouseEnter={() => onToggle(true)}
       onMouseLeave={() => onToggle(false)}
@@ -120,7 +156,15 @@ export function FolderMoreControl({
       >
         <MoreVertical className="size-4" />
       </button>
-      <FolderActionMenu open={open} onClose={onClose} onStartSelection={onStartSelection} onRename={onRename} />
+      <FolderActionMenu
+        open={open}
+        onClose={onClose}
+        protectedFolder={protectedFolder}
+        onStartSelection={onStartSelection}
+        onRename={onRename}
+        onMove={onMove}
+        onDelete={onDelete}
+      />
     </div>
   )
 }
@@ -130,26 +174,39 @@ function FolderActionMenu({
   onClose,
   onStartSelection,
   onRename,
+  onMove,
+  onDelete,
+  protectedFolder,
 }: {
   open: boolean
   onClose: () => void
   onStartSelection?: () => void
   onRename?: () => void
+  onMove?: () => void
+  onDelete?: () => void
+  protectedFolder?: boolean
 }) {
-  function handleItemClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onClose()
-  }
-
   function handleRename(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onRename?.()
     onClose()
   }
 
+  function handleMove(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onMove?.()
+    onClose()
+  }
+
   function handleStartSelection(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onStartSelection?.()
+    onClose()
+  }
+
+  function handleDelete(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onDelete?.()
     onClose()
   }
 
@@ -165,25 +222,31 @@ function FolderActionMenu({
           <Edit3 className="size-4 text-on-surface-variant" />
           <span>重命名</span>
         </button>
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <FolderInput className="size-4 text-on-surface-variant" />
-          <span>移动</span>
-        </button>
+        {!protectedFolder ? (
+          <button type="button" onClick={handleMove} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+            <FolderInput className="size-4 text-on-surface-variant" />
+            <span>移动</span>
+          </button>
+        ) : null}
         <button type="button" onClick={handleStartSelection} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
           <CheckSquare className="size-4 text-on-surface-variant" />
           <span>多选</span>
         </button>
-        <div className="my-1 border-t border-outline-variant/30" />
-        <button type="button" onClick={handleItemClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-error transition-colors hover:bg-error-container/30">
-          <Trash2 className="size-4" />
-          <span>删除</span>
-        </button>
+        {!protectedFolder ? (
+          <>
+            <div className="my-1 border-t border-outline-variant/30" />
+            <button type="button" onClick={handleDelete} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-error transition-colors hover:bg-error-container/30">
+              <Trash2 className="size-4" />
+              <span>删除</span>
+            </button>
+          </>
+        ) : null}
       </div>
     </div>
   )
 }
 
-export function AddFolderCard({ disabled = false, onClick }: { disabled?: boolean; onClick?: () => void }) {
+export function AddFolderCard({ disabled = false, onClick, label = '新建文件夹' }: { disabled?: boolean; onClick?: () => void; label?: string }) {
   return (
     <button
       type="button"
@@ -198,7 +261,7 @@ export function AddFolderCard({ disabled = false, onClick }: { disabled?: boolea
       <div className={`mb-3 flex size-12 items-center justify-center rounded-full ${disabled ? 'bg-surface-container' : 'bg-surface-container-highest'}`}>
         <Plus className="size-6" />
       </div>
-      <span className="font-label-md text-label-md">新建文件夹</span>
+      <span className="font-label-md text-label-md">{label}</span>
     </button>
   )
 }
