@@ -1,7 +1,8 @@
-import { Check, CheckSquare, Copy, FolderInput, Image, MoreVertical, Star, Trash2 } from 'lucide-react'
+import { Check, CheckSquare, Copy, FolderInput, Image, Star, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
+import { HoverActionMenu, type HoverMenuItem } from '../../../shared/ui'
 
 interface NoteCardProps {
   note: Note
@@ -167,101 +168,49 @@ function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
 }
 
 function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, onStartSelection }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onDuplicate?: (noteId: string) => void; onStartSelection?: () => void }) {
-  function handleToggle(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onToggle(!open)
-  }
+  void onClose
+  const items: HoverMenuItem[] = [
+    {
+      key: 'favorite',
+      label: note.isFavorite ? '取消收藏' : '添加收藏',
+      icon: Star,
+      hidden: !onToggleFavorite,
+      onSelect: () => onToggleFavorite?.(note.id),
+    },
+    {
+      key: 'move',
+      label: '移动到文件夹',
+      icon: FolderInput,
+      hidden: !onRequestMoveToFolder,
+      onSelect: () => onRequestMoveToFolder?.(note.id),
+    },
+    {
+      key: 'multi',
+      label: '多选',
+      icon: CheckSquare,
+      hidden: !onStartSelection,
+      onSelect: () => onStartSelection?.(),
+    },
+    {
+      key: 'duplicate',
+      label: '复制笔记',
+      icon: Copy,
+      hidden: !onDuplicate,
+      onSelect: () => onDuplicate?.(note.id),
+    },
+    {
+      key: 'trash',
+      label: '删除',
+      icon: Trash2,
+      danger: true,
+      hidden: !onMoveToTrash,
+      onSelect: () => onMoveToTrash?.(note.id),
+    },
+  ]
 
   return (
-    <div
-      className="absolute top-3 right-3 z-50 w-max"
-      onClick={(event) => event.stopPropagation()}
-      onMouseEnter={() => onToggle(true)}
-      onMouseLeave={() => onToggle(false)}
-    >
-      <CardMoreButton open={open} onClick={handleToggle} />
-      <CardActionMenu note={note} open={open} onClose={onClose} onToggleFavorite={onToggleFavorite} onMoveToTrash={onMoveToTrash} onRequestMoveToFolder={onRequestMoveToFolder} onDuplicate={onDuplicate} onStartSelection={onStartSelection} />
-    </div>
-  )
-}
-
-function CardMoreButton({ open, onClick }: { open: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex size-8 shrink-0 items-center justify-center rounded-full border border-white/40 bg-surface-container-lowest/60 text-on-surface-variant shadow-sm backdrop-blur-md transition-all hover:bg-surface-container-lowest/85 hover:text-primary focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary-fixed group-hover:opacity-100 ${
-        open ? 'opacity-100' : 'opacity-0'
-      }`}
-    >
-      <MoreVertical className="size-5" />
-    </button>
-  )
-}
-
-function CardActionMenu({ note, open, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, onStartSelection }: { note: Note; open: boolean; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onDuplicate?: (noteId: string) => void; onStartSelection?: () => void }) {
-  function handleFavoriteClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onToggleFavorite?.(note.id)
-    onClose()
-  }
-
-  function handleMoveToFolderClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onRequestMoveToFolder?.(note.id)
-    onClose()
-  }
-
-  function handleStartSelectionClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onStartSelection?.()
-    onClose()
-  }
-
-  function handleDuplicateClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onDuplicate?.(note.id)
-    onClose()
-  }
-
-  function handleMoveToTrashClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    onMoveToTrash?.(note.id)
-    onClose()
-  }
-
-  return (
-    <div
-      className={`absolute top-full right-0 pt-2 transition-all duration-150 ${
-        open ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'
-      }`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <div className="w-48 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-lg">
-        {onToggleFavorite ? (
-          <button type="button" onClick={handleFavoriteClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-            <Star className="size-4" fill={note.isFavorite ? 'currentColor' : 'none'} />
-            <span>{note.isFavorite ? '取消收藏' : '添加收藏'}</span>
-          </button>
-        ) : null}
-        <button type="button" onClick={handleMoveToFolderClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <FolderInput className="size-4" />
-          <span>移动到文件夹</span>
-        </button>
-        <button type="button" onClick={handleStartSelectionClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <CheckSquare className="size-4" />
-          <span>多选</span>
-        </button>
-        <button type="button" onClick={handleDuplicateClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <Copy className="size-4" />
-          <span>复制笔记</span>
-        </button>
-        <div className="my-1 border-t border-outline-variant/30" />
-        <button type="button" onClick={handleMoveToTrashClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-error transition-colors hover:bg-error-container/30">
-          <Trash2 className="size-4" />
-          <span>删除</span>
-        </button>
-      </div>
+    <div className="absolute top-3 right-3 z-50">
+      <HoverActionMenu open={open} onOpenChange={onToggle} items={items} triggerVariant="card" />
     </div>
   )
 }

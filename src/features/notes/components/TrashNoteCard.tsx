@@ -1,6 +1,7 @@
 import { Image, RotateCcw, Timer, Trash2 } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
 import { formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
+import { getNoteTagNames } from '../../../shared/notes/noteSelectors'
 
 interface TrashNoteCardProps {
   note: Note
@@ -9,12 +10,9 @@ interface TrashNoteCardProps {
   onPermanentlyDelete?: () => void
 }
 
-function trashTags(note: Note) {
-  return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : ['已删除']
-}
 
 export function TrashNoteCard({ note, index, onRestore, onPermanentlyDelete }: TrashNoteCardProps) {
-  const tags = trashTags(note)
+  const tags = getNoteTagNames(note, ['已删除'])
   const daysRemaining = getTrashDaysRemaining(note)
   const purgeLabel = formatTrashPurgeLabel(daysRemaining)
   const urgent = isTrashPurgeUrgent(daysRemaining)

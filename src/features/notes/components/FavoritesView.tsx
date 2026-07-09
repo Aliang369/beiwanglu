@@ -1,7 +1,8 @@
-import { SearchX, Star, Tags } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { EmptyState } from './EmptyState'
+import { FilteredEmptyState } from './FilteredEmptyState'
 import { FavoriteNoteCard } from './FavoriteNoteCard'
 import { FavoriteNoteListItem } from './FavoriteNoteListItem'
 import { NoteViewSwitcher, type NoteViewMode } from './NoteViewSwitcher'
@@ -57,13 +58,18 @@ export function FavoritesView({ notes, totalCount, query = '', tagId = null, onC
             )}
           </>
         ) : (
-          hasSearch ? (
-            <EmptyState icon={SearchX} title="没有找到相关笔记" description={`没有匹配“${trimmedQuery}”的收藏内容。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} />
-          ) : hasFilter ? (
-            <EmptyState icon={Tags} title="当前筛选没有结果" description="收藏夹中没有符合当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} />
-          ) : (
-            <EmptyState icon={Star} title="还没有收藏" description="把重要笔记标记为收藏后，它们会出现在这里。" variant="favorites" primaryAction={onViewAll ? { label: '查看所有笔记', onClick: onViewAll } : undefined} />
-          )
+          <FilteredEmptyState
+            query={query}
+            tagId={tagId}
+            searchTitle="没有找到相关笔记"
+            searchDescription={`没有匹配“${trimmedQuery}”的收藏内容。`}
+            filterDescription="收藏夹中没有符合当前标签筛选的笔记。"
+            onClearSearch={onClearSearch}
+            onClearTagFilter={onClearTagFilter}
+            fallback={
+              <EmptyState icon={Star} title="还没有收藏" description="把重要笔记标记为收藏后，它们会出现在这里。" variant="favorites" primaryAction={onViewAll ? { label: '查看所有笔记', onClick: onViewAll } : undefined} />
+            }
+          />
         )}
       </div>
     </main>

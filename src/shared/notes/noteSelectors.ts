@@ -45,6 +45,25 @@ export function formatUpdatedAt(iso: string) {
   return date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })
 }
 
+export function formatClockTime(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return '--:--'
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+/** 笔记标签名列表，空时返回 fallback */
+export function getNoteTagNames(note: Note, fallback: string[] = []) {
+  return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : fallback
+}
+
 function matchesNotesView(note: Note, view: NotesView) {
   return (
     (view === 'trash' && note.isDeleted) ||

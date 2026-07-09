@@ -1,18 +1,15 @@
 import { Clock3, Star } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
-import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
+import { formatUpdatedAt, getNoteTagNames } from '../../../shared/notes/noteSelectors'
 
 interface FavoriteNoteListItemProps {
   note: Note
   onSelect?: (noteId: string) => void
 }
 
-function favoriteTags(note: Note) {
-  return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : ['收藏']
-}
 
 export function FavoriteNoteListItem({ note, onSelect }: FavoriteNoteListItemProps) {
-  const primaryTag = favoriteTags(note)[0]
+  const primaryTag = getNoteTagNames(note, ['收藏'])[0]
 
   return (
     <article

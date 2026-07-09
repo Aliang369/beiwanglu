@@ -1,8 +1,8 @@
-import { Info, SearchX, Tags, Trash } from 'lucide-react'
+import { Info, Trash } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { ConfirmDialog } from './ConfirmDialog'
-import { EmptyState } from './EmptyState'
+import { FilteredEmptyState } from './FilteredEmptyState'
 import { NoteViewSwitcher, type NoteViewMode } from './NoteViewSwitcher'
 import { TrashEmptyState } from './TrashEmptyState'
 import { TrashNoteCard } from './TrashNoteCard'
@@ -102,13 +102,16 @@ export function TrashView({ notes, totalCount, query = '', tagId = null, onClear
             )}
           </>
         ) : (
-          hasSearch ? (
-            <EmptyState icon={SearchX} title="没有找到相关笔记" description={`废纸篓中没有匹配“${trimmedQuery}”的内容。`} variant="search" primaryAction={onClearSearch ? { label: '清空搜索', onClick: onClearSearch } : undefined} />
-          ) : hasFilter ? (
-            <EmptyState icon={Tags} title="当前筛选没有结果" description="废纸篓中没有符合当前标签筛选的笔记。" variant="filter" primaryAction={onClearTagFilter ? { label: '清除筛选', onClick: onClearTagFilter } : undefined} />
-          ) : (
-            <TrashEmptyState onViewAll={onViewAll} />
-          )
+          <FilteredEmptyState
+            query={query}
+            tagId={tagId}
+            searchTitle="没有找到相关笔记"
+            searchDescription={`废纸篓中没有匹配“${trimmedQuery}”的内容。`}
+            filterDescription="废纸篓中没有符合当前标签筛选的笔记。"
+            onClearSearch={onClearSearch}
+            onClearTagFilter={onClearTagFilter}
+            fallback={<TrashEmptyState onViewAll={onViewAll} />}
+          />
         )}
       </div>
 

@@ -1,6 +1,7 @@
-import { BookOpen, BriefcaseBusiness, Check, Folder, Lightbulb, Plane, Plus, ReceiptText, Utensils } from 'lucide-react'
-import { useState, type ComponentType } from 'react'
-import type { FolderIcon } from '../../../shared/types/folder'
+import { Check } from 'lucide-react'
+import { useState } from 'react'
+import { getFolderIcon } from '../../../shared/notes/folderIcons'
+import { DashedCreate } from './DashedCreate'
 import { FolderMoreControl, type FolderItem } from './FolderCard'
 
 interface FolderListItemProps {
@@ -16,16 +17,6 @@ interface FolderListItemProps {
   onDelete?: (folderId: string) => void
 }
 
-const folderIcons: Record<FolderIcon, ComponentType<{ className?: string }>> = {
-  work: BriefcaseBusiness,
-  study: BookOpen,
-  travel: Plane,
-  ideas: Lightbulb,
-  recipes: Utensils,
-  finance: ReceiptText,
-  folder: Folder,
-}
-
 export function FolderListItem({
   folder,
   selectionMode = false,
@@ -38,7 +29,7 @@ export function FolderListItem({
   onMove,
   onDelete,
 }: FolderListItemProps) {
-  const Icon = folderIcons[folder.icon]
+  const Icon = getFolderIcon(folder.icon)
   const [menuOpen, setMenuOpen] = useState(false)
 
   function closeMenu() {
@@ -122,14 +113,5 @@ export function FolderListItem({
 }
 
 export function AddFolderListItem({ onClick, label = '新建文件夹' }: { onClick?: () => void; label?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-outline-variant/50 bg-surface-container-lowest p-5 text-primary transition-colors duration-300 hover:border-primary hover:bg-surface-container-low active:scale-[0.99]"
-    >
-      <Plus className="size-6 opacity-70" />
-      <span className="font-label-md text-label-md">{label}</span>
-    </button>
-  )
+  return <DashedCreate layout="list" label={label} onClick={onClick} />
 }
