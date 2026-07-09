@@ -224,6 +224,12 @@ export function NotesHome() {
             onClearSearch={() => setQuery('')}
             onClearTagFilter={() => setTagFilter(null)}
             onSelectNote={setEditingNoteId}
+            onToggleFavorite={(noteId) => toggleFavorite(noteId)}
+            onMoveNoteToTrash={(noteId) => moveToTrash(noteId)}
+            onRequestMoveNoteToFolder={setMovingNoteId}
+            onMoveNoteToFolder={(noteId, folderId) => moveToFolder(noteId, folderId)}
+            onDuplicateNote={(noteId) => duplicateNote(noteId)}
+            folderOptions={folderOptions}
             onCreateFolder={async (name, parentId) => { await createFolder({ name, parentId }) }}
             onRenameFolder={(folderId, name) => renameFolder(folderId, name)}
             onMoveFolders={(folderIds, parentId) => moveFolders(folderIds, parentId)}

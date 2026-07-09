@@ -403,18 +403,24 @@ function NoteListRowActionMenu({ open, onClose, onMoveToFolder, onStartSelection
       onClick={(event) => event.stopPropagation()}
     >
       <div className="w-44 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-lg">
-        <button type="button" onClick={handleMoveToFolderClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <FolderInput className="size-4 text-on-surface-variant" />
-          <span>移动到文件夹</span>
-        </button>
-        <button type="button" onClick={handleStartSelectionClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <CheckSquare className="size-4 text-on-surface-variant" />
-          <span>多选</span>
-        </button>
-        <button type="button" onClick={handleDuplicateClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
-          <Copy className="size-4 text-on-surface-variant" />
-          <span>复制笔记</span>
-        </button>
+        {onMoveToFolder ? (
+          <button type="button" onClick={handleMoveToFolderClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+            <FolderInput className="size-4 text-on-surface-variant" />
+            <span>移动到文件夹</span>
+          </button>
+        ) : null}
+        {onStartSelection ? (
+          <button type="button" onClick={handleStartSelectionClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+            <CheckSquare className="size-4 text-on-surface-variant" />
+            <span>多选</span>
+          </button>
+        ) : null}
+        {onDuplicate ? (
+          <button type="button" onClick={handleDuplicateClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-low">
+            <Copy className="size-4 text-on-surface-variant" />
+            <span>复制笔记</span>
+          </button>
+        ) : null}
       </div>
     </div>
   )

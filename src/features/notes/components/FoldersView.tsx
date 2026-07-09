@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import { ArrowLeft, FileText, SearchX, Star, Tags, Trash2 } from 'lucide-react'
+import { useMemo, useRef, useState, type MouseEvent } from 'react'
+import { ArrowLeft, Check, FileText, SearchX, Star, Tags, Trash2 } from 'lucide-react'
 import type { Folder } from '../../../shared/types/folder'
 import { isProtectedFolderId } from '../../../shared/types/folder'
 import type { Note } from '../../../shared/types/note'
@@ -13,6 +13,7 @@ import { AddFolderCard, FolderCard, type FolderItem } from './FolderCard'
 import { FoldersEmptyState } from './FoldersEmptyState'
 import { FoldersSelectionBar } from './FoldersSelectionBar'
 import { MoveFolderDialog, type MoveFolderTargetOption } from './MoveFolderDialog'
+import { MoveToFolderDialog, type MoveToFolderOption } from './MoveToFolderDialog'
 import { NoteCard } from './NoteCard'
 import { NoteListRowMoreControl } from './NoteList'
 import { NoteViewSwitcher, type NoteViewMode } from './NoteViewSwitcher'
@@ -37,6 +38,12 @@ interface FoldersViewProps {
   onClearSearch?: () => void
   onClearTagFilter?: () => void
   onSelectNote?: (noteId: string) => void
+  onToggleFavorite?: (noteId: string) => void | Promise<void>
+  onMoveNoteToTrash?: (noteId: string) => void | Promise<void>
+  onRequestMoveNoteToFolder?: (noteId: string) => void
+  onMoveNoteToFolder?: (noteId: string, folderId: string | null) => void | Promise<void>
+  onDuplicateNote?: (noteId: string) => void | Promise<void>
+  folderOptions?: MoveToFolderOption[]
   onCreateFolder?: (name: string, parentId: string | null) => void | Promise<void>
   onRenameFolder?: (folderId: string, name: string) => void | Promise<void>
   onMoveFolders?: (folderIds: string[], parentId: string | null) => void | Promise<void>
@@ -52,6 +59,12 @@ export function FoldersView({
   onClearSearch,
   onClearTagFilter,
   onSelectNote,
+  onToggleFavorite,
+  onMoveNoteToTrash,
+  onRequestMoveNoteToFolder,
+  onMoveNoteToFolder,
+  onDuplicateNote,
+  folderOptions = [],
   onCreateFolder,
   onRenameFolder,
   onMoveFolders,
@@ -67,7 +80,10 @@ export function FoldersView({
   const [deletingFolderIds, setDeletingFolderIds] = useState<string[] | null>(null)
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
 
-  const selectionMode = selectedFolderIds.length > 0
+  const folderSelectionMode = selectedFolderIds.length > 0
+  const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([])
+  const noteSelectionBeforeSelectAllRef = useRef<string[] | null>(null)
+  const [bulkMoveNoteOpen, setBulkMoveNoteOpen] = useState(false)
   const trimmedQuery = query.trim()
   const hasSearch = trimmedQuery.length > 0
   const hasFilter = Boolean(tagId)
@@ -101,6 +117,11 @@ export function FoldersView({
   const childFolderItems = activeFolderId ? folderItems.filter((folder) => folder.parentId === activeFolderId) : []
   const activeFolderTotalNotes = activeFolder ? notes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
   const activeFolderNotes = activeFolder ? visibleNotes.filter((note) => note.folderId === activeFolder.id && !note.isDeleted) : []
+  const activeFolderNoteIds = new Set(activeFolderNotes.map((note) => note.id))
+  const selectedVisibleNoteIds = selectedNoteIds.filter((id) => activeFolderNoteIds.has(id))
+  const selectedVisibleNoteIdSet = new Set(selectedVisibleNoteIds)
+  const noteSelectionMode = selectedVisibleNoteIds.length > 0
+  const selectionMode = folderSelectionMode || noteSelectionMode
 
   const renamingFolder = renamingFolderId ? folderItemMap.get(renamingFolderId) ?? null : null
   const createParentId = activeFolder && !isActiveChild ? activeFolder.id : null
@@ -124,12 +145,10 @@ export function FoldersView({
     ? childFolderItems.filter(folderMatchesFilter)
     : childFolderItems
 
-  function toggleFolder(folderId: string) {
-    setSelectedFolderIds((current) => (current.includes(folderId) ? current.filter((id) => id !== folderId) : [...current, folderId]))
-  }
-
-  function startSelection(folderId: string) {
-    setSelectedFolderIds((current) => (current.includes(folderId) ? current : [...current, folderId]))
+  function clearNoteSelection() {
+    noteSelectionBeforeSelectAllRef.current = null
+    setSelectedNoteIds([])
+    setBulkMoveNoteOpen(false)
   }
 
   function clearSelection() {
@@ -137,7 +156,18 @@ export function FoldersView({
     setSelectedFolderIds([])
   }
 
+  function toggleFolder(folderId: string) {
+    clearNoteSelection()
+    setSelectedFolderIds((current) => (current.includes(folderId) ? current.filter((id) => id !== folderId) : [...current, folderId]))
+  }
+
+  function startSelection(folderId: string) {
+    clearNoteSelection()
+    setSelectedFolderIds((current) => (current.includes(folderId) ? current : [...current, folderId]))
+  }
+
   function selectAllVisible() {
+    clearNoteSelection()
     const items = activeFolder ? visibleChildFolderItems : visibleRootFolderItems
     const ids = items.map((folder) => folder.id)
     const currentVisibleSelected = selectedFolderIds.filter((id) => items.some((folder) => folder.id === id))
@@ -157,8 +187,55 @@ export function FoldersView({
     clearSelection()
   }
 
+  function toggleNote(noteId: string) {
+    clearSelection()
+    setSelectedNoteIds((current) => (current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId]))
+  }
+
+  function startNoteSelection(noteId: string) {
+    clearSelection()
+    setSelectedNoteIds((current) => (current.includes(noteId) ? current : [...current, noteId]))
+  }
+
+  function selectAllVisibleNotes() {
+    clearSelection()
+    noteSelectionBeforeSelectAllRef.current = selectedVisibleNoteIds
+    setSelectedNoteIds(activeFolderNotes.map((note) => note.id))
+  }
+
+  function restoreNoteSelectionBeforeSelectAll() {
+    const snapshot = noteSelectionBeforeSelectAllRef.current
+    noteSelectionBeforeSelectAllRef.current = null
+
+    if (snapshot && snapshot.length > 0) {
+      setSelectedNoteIds(snapshot)
+      return
+    }
+
+    clearNoteSelection()
+  }
+
+  async function handleBulkMoveNotes(folderId: string | null) {
+    if (!onMoveNoteToFolder) {
+      return
+    }
+
+    await Promise.all(selectedVisibleNoteIds.map((noteId) => onMoveNoteToFolder(noteId, folderId)))
+    clearNoteSelection()
+  }
+
+  async function handleBulkMoveNotesToTrash() {
+    if (!onMoveNoteToTrash) {
+      return
+    }
+
+    await Promise.all(selectedVisibleNoteIds.map((noteId) => onMoveNoteToTrash(noteId)))
+    clearNoteSelection()
+  }
+
   function openFolder(folderId: string) {
-    setSelectedFolderIds([])
+    clearSelection()
+    clearNoteSelection()
     setActiveFolderId(folderId)
   }
 
@@ -208,6 +285,16 @@ export function FoldersView({
     }
   }
 
+  const noteActions = {
+    onToggleFavorite: folderSelectionMode ? undefined : onToggleFavorite,
+    onMoveToTrash: folderSelectionMode ? undefined : onMoveNoteToTrash,
+    onRequestMoveToFolder: folderSelectionMode ? undefined : onRequestMoveNoteToFolder,
+    onDuplicate: folderSelectionMode ? undefined : onDuplicateNote,
+    selectionMode: noteSelectionMode,
+    onToggleSelection: folderSelectionMode ? undefined : toggleNote,
+    onStartSelection: folderSelectionMode ? undefined : startNoteSelection,
+  }
+
   const moveOptions: MoveFolderTargetOption[] = useMemo(() => {
     if (!movingFolderIds?.length) {
       return []
@@ -254,7 +341,7 @@ export function FoldersView({
             <FolderListItem
               key={folder.id}
               folder={folder}
-              selectionMode={selectionMode}
+              selectionMode={folderSelectionMode}
               selected={selectedFolderIds.includes(folder.id)}
               onToggle={toggleFolder}
               onOpen={openFolder}
@@ -275,7 +362,7 @@ export function FoldersView({
           <FolderCard
             key={folder.id}
             folder={folder}
-            selectionMode={selectionMode}
+            selectionMode={folderSelectionMode}
             selected={selectedFolderIds.includes(folder.id)}
             onToggle={toggleFolder}
             onStartSelection={startSelection}
@@ -347,18 +434,26 @@ export function FoldersView({
             <FolderListItem
               key={`folder-${folder.id}`}
               folder={folder}
-              selectionMode={selectionMode}
+              selectionMode={folderSelectionMode}
               selected={selectedFolderIds.includes(folder.id)}
+              disabled={noteSelectionMode}
               onToggle={toggleFolder}
               onOpen={openFolder}
-              onStartSelection={startSelection}
+              onStartSelection={noteSelectionMode ? undefined : startSelection}
               onRename={setRenamingFolderId}
               onMove={(folderId) => openMove([folderId])}
               onDelete={(folderId) => openDelete([folderId])}
             />
           ))}
           {activeFolderNotes.map((note) => (
-            <FolderNoteListRow key={`note-${note.id}`} note={note} onSelect={onSelectNote} />
+            <FolderNoteListRow
+              key={`note-${note.id}`}
+              note={note}
+              onSelect={onSelectNote}
+              selected={selectedVisibleNoteIdSet.has(note.id)}
+              disabled={folderSelectionMode}
+              {...noteActions}
+            />
           ))}
           {allowCreateChild ? <AddFolderListItem label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
         </div>
@@ -371,10 +466,11 @@ export function FoldersView({
           <FolderCard
             key={`folder-${folder.id}`}
             folder={folder}
-            selectionMode={selectionMode}
+            selectionMode={folderSelectionMode}
             selected={selectedFolderIds.includes(folder.id)}
+            disabled={noteSelectionMode}
             onToggle={toggleFolder}
-            onStartSelection={startSelection}
+            onStartSelection={noteSelectionMode ? undefined : startSelection}
             onOpen={openFolder}
             onRename={setRenamingFolderId}
             onMove={(folderId) => openMove([folderId])}
@@ -382,7 +478,15 @@ export function FoldersView({
           />
         ))}
         {activeFolderNotes.map((note) => (
-          <NoteCard key={`note-${note.id}`} note={note} visual={note.id === 'design-inspo'} onSelect={onSelectNote} />
+          <NoteCard
+            key={`note-${note.id}`}
+            note={note}
+            visual={note.id === 'design-inspo'}
+            onSelect={onSelectNote}
+            selected={selectedVisibleNoteIdSet.has(note.id)}
+            disabled={folderSelectionMode}
+            {...noteActions}
+          />
         ))}
         {showChildren ? <AddFolderCard disabled={selectionMode} label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
       </div>
@@ -407,6 +511,7 @@ export function FoldersView({
                 type="button"
                 onClick={() => {
                   clearSelection()
+                  clearNoteSelection()
                   setActiveFolderId(activeFolderRecord?.parentId ?? null)
                 }}
                 className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:border-primary hover:bg-surface-container-low hover:text-primary"
@@ -414,13 +519,13 @@ export function FoldersView({
                 <ArrowLeft className="size-4" />
                 返回
               </button>
-              {activeFolderNotes.length > 0 || childFolderItems.length > 0 ? (
+              {!selectionMode && (activeFolderNotes.length > 0 || childFolderItems.length > 0) ? (
                 <NoteViewSwitcher value={detailViewMode} onChange={setDetailViewMode} />
               ) : null}
             </div>
           </div>
 
-          {selectionMode ? (
+          {folderSelectionMode ? (
             <FoldersSelectionBar
               selectedCount={selectedVisibleIds.length}
               totalCount={selectableItems.length}
@@ -431,6 +536,21 @@ export function FoldersView({
               onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
               onDelete={() => openDelete(selectedVisibleIds)}
               onClear={clearSelection}
+            />
+          ) : null}
+
+          {noteSelectionMode ? (
+            <FoldersSelectionBar
+              selectedCount={selectedVisibleNoteIds.length}
+              totalCount={activeFolderNotes.length}
+              canMove={Boolean(onMoveNoteToFolder)}
+              canDelete={Boolean(onMoveNoteToTrash)}
+              moveLabel="移动到文件夹"
+              onSelectAll={selectAllVisibleNotes}
+              onClearSelection={restoreNoteSelectionBeforeSelectAll}
+              onMove={() => setBulkMoveNoteOpen(true)}
+              onDelete={() => void handleBulkMoveNotesToTrash()}
+              onClear={clearNoteSelection}
             />
           ) : null}
 
@@ -447,6 +567,18 @@ export function FoldersView({
             options={moveOptions}
             onClose={() => setMovingFolderIds(null)}
             onMove={handleMove}
+          />
+        ) : null}
+        {bulkMoveNoteOpen ? (
+          <MoveToFolderDialog
+            title="移动所选笔记"
+            description={`将 ${selectedVisibleNoteIds.length} 篇笔记移动到目标文件夹。`}
+            initialFolderId={null}
+            showCurrent={false}
+            disableWhenUnchanged={false}
+            folderOptions={folderOptions}
+            onClose={() => setBulkMoveNoteOpen(false)}
+            onMove={handleBulkMoveNotes}
           />
         ) : null}
         {deletingFolderIds ? (
@@ -495,7 +627,7 @@ export function FoldersView({
           {selectionMode ? null : <NoteViewSwitcher value={viewMode} onChange={setViewMode} />}
         </div>
 
-        {selectionMode ? (
+        {folderSelectionMode ? (
           <FoldersSelectionBar
             selectedCount={selectedVisibleIds.length}
             totalCount={selectableItems.length}
@@ -550,18 +682,103 @@ export function FoldersView({
   )
 }
 
-function FolderNoteListRow({ note, onSelect }: { note: Note; onSelect?: (noteId: string) => void }) {
+function FolderNoteListRow({
+  note,
+  onSelect,
+  onToggleFavorite,
+  onMoveToTrash,
+  onRequestMoveToFolder,
+  onDuplicate,
+  selectionMode = false,
+  selected = false,
+  disabled = false,
+  onToggleSelection,
+  onStartSelection,
+}: {
+  note: Note
+  onSelect?: (noteId: string) => void
+  onToggleFavorite?: (noteId: string) => void | Promise<void>
+  onMoveToTrash?: (noteId: string) => void | Promise<void>
+  onRequestMoveToFolder?: (noteId: string) => void
+  onDuplicate?: (noteId: string) => void | Promise<void>
+  selectionMode?: boolean
+  selected?: boolean
+  disabled?: boolean
+  onToggleSelection?: (noteId: string) => void
+  onStartSelection?: (noteId: string) => void
+}) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
+  function closeMenu() {
+    setMenuOpen(false)
+  }
+
+  function handleFavoriteClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (disabled) {
+      return
+    }
+    void onToggleFavorite?.(note.id)
+  }
+
+  function handleMoveToTrashClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (disabled) {
+      return
+    }
+    void onMoveToTrash?.(note.id)
+  }
+
+  function handleRowClick() {
+    if (disabled) {
+      return
+    }
+
+    if (selectionMode) {
+      onToggleSelection?.(note.id)
+      return
+    }
+
+    onSelect?.(note.id)
+  }
+
+  function handleSelectionClick(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (disabled) {
+      return
+    }
+    onToggleSelection?.(note.id)
+  }
+
   return (
     <article
-      onClick={() => onSelect?.(note.id)}
-      className={`group relative flex cursor-pointer items-center gap-6 rounded-xl border border-outline-variant bg-white p-5 transition-all duration-300 hover:border-primary-fixed-dim hover:shadow-lg ${menuOpen ? 'z-30' : 'z-0'}`}
+      onClick={handleRowClick}
+      aria-disabled={disabled || undefined}
+      aria-selected={selectionMode ? selected : undefined}
+      className={`group relative flex items-center gap-6 rounded-xl border border-outline-variant bg-white p-5 transition-all duration-300 ${
+        disabled ? 'pointer-events-none cursor-not-allowed opacity-45' : 'cursor-pointer hover:border-primary-fixed-dim hover:shadow-lg'
+      } ${menuOpen ? 'z-30' : 'z-0'} ${
+        selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : ''
+      }`}
     >
-      <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-high text-primary shadow-sm">
-        <FileText className="size-5" strokeWidth={1.8} />
-      </div>
+      {selectionMode && !disabled ? (
+        <button
+          type="button"
+          onClick={handleSelectionClick}
+          aria-label={selected ? '取消选择笔记' : '选择笔记'}
+          aria-pressed={selected}
+          className={`flex size-12 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+            selected ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-outline-variant bg-surface-container-high text-on-surface-variant hover:border-primary hover:text-primary'
+          }`}
+        >
+          {selected ? <Check className="size-5" /> : <FileText className="size-5" strokeWidth={1.8} />}
+        </button>
+      ) : (
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-high text-primary shadow-sm">
+          <FileText className="size-5" strokeWidth={1.8} />
+        </div>
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex min-w-0 items-center gap-3">
@@ -571,15 +788,24 @@ function FolderNoteListRow({ note, onSelect }: { note: Note; onSelect?: (noteId:
         <p className="max-w-2xl truncate font-body-md text-body-md text-on-surface-variant">{note.excerpt || note.content || '开始输入内容...'}</p>
       </div>
 
-      <div className="ml-0 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 lg:ml-4">
-        <button type="button" onClick={(event) => event.stopPropagation()} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-primary">
-          <Star className="size-5" fill={note.isFavorite ? 'currentColor' : 'none'} />
-        </button>
-        <button type="button" onClick={(event) => event.stopPropagation()} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-error">
-          <Trash2 className="size-5" />
-        </button>
-        <NoteListRowMoreControl open={menuOpen} onToggle={setMenuOpen} onClose={() => setMenuOpen(false)} />
-      </div>
+      {!selectionMode && !disabled ? (
+        <div className="ml-0 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 lg:ml-4">
+          <button type="button" onClick={handleFavoriteClick} aria-label={note.isFavorite ? '取消收藏' : '添加收藏'} aria-pressed={note.isFavorite} className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-primary">
+            <Star className="size-5" fill={note.isFavorite ? 'currentColor' : 'none'} />
+          </button>
+          <button type="button" onClick={handleMoveToTrashClick} aria-label="删除" className="rounded-full p-2 text-outline transition-colors hover:bg-surface-container hover:text-error">
+            <Trash2 className="size-5" />
+          </button>
+          <NoteListRowMoreControl
+            open={menuOpen}
+            onToggle={setMenuOpen}
+            onClose={closeMenu}
+            onMoveToFolder={() => onRequestMoveToFolder?.(note.id)}
+            onStartSelection={() => onStartSelection?.(note.id)}
+            onDuplicate={() => void onDuplicate?.(note.id)}
+          />
+        </div>
+      ) : null}
 
       <div className="hidden shrink-0 text-right sm:block">
         <p className="font-label-md text-label-md font-medium text-on-surface">{formatUpdatedAt(note.updatedAt)}</p>

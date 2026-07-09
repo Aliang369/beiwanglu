@@ -18,6 +18,7 @@ interface FolderCardProps {
   folder: FolderItem
   selectionMode: boolean
   selected: boolean
+  disabled?: boolean
   onToggle: (folderId: string) => void
   onStartSelection?: (folderId: string) => void
   onOpen?: (folderId: string) => void
@@ -36,7 +37,7 @@ const folderIcons: Record<FolderIcon, ComponentType<{ className?: string }>> = {
   folder: Folder,
 }
 
-export function FolderCard({ folder, selectionMode, selected, onToggle, onStartSelection, onOpen, onRename, onMove, onDelete }: FolderCardProps) {
+export function FolderCard({ folder, selectionMode, selected, disabled = false, onToggle, onStartSelection, onOpen, onRename, onMove, onDelete }: FolderCardProps) {
   const Icon = folderIcons[folder.icon]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -49,11 +50,23 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
     : `${folder.noteCount} 篇笔记`
 
   return (
-    <div className={`group relative h-full ${menuOpen ? 'z-30' : 'z-0'}`}>
+    <div className={`group relative h-full ${menuOpen ? 'z-30' : 'z-0'} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
       <article
-        onClick={() => (selectionMode ? onToggle(folder.id) : onOpen?.(folder.id))}
+        onClick={() => {
+          if (disabled) {
+            return
+          }
+          if (selectionMode) {
+            onToggle(folder.id)
+            return
+          }
+          onOpen?.(folder.id)
+        }}
+        aria-disabled={disabled || undefined}
         aria-selected={selectionMode ? selected : undefined}
-        className={`flex h-full min-h-44 cursor-pointer flex-col rounded-xl p-5 transition-all ${
+        className={`flex h-full min-h-44 flex-col rounded-xl p-5 transition-all ${
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+        } ${
           selected
             ? 'border-2 border-primary bg-inverse-on-surface shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20'
             : 'border border-outline-variant bg-surface-container-lowest shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-primary-fixed-dim hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]'
@@ -79,7 +92,7 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
         </div>
       </article>
 
-      {selectionMode ? (
+      {selectionMode && !disabled ? (
         <button
           type="button"
           onClick={(event) => {
@@ -96,7 +109,7 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
         >
           {selected ? <Check className="size-4" /> : null}
         </button>
-      ) : (
+      ) : !selectionMode && !disabled ? (
         <div className="absolute top-3 right-3 z-50">
           <FolderMoreControl
             open={menuOpen}
@@ -109,7 +122,7 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
             onDelete={onDelete ? () => onDelete(folder.id) : undefined}
           />
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

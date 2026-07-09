@@ -5,6 +5,7 @@ interface FoldersSelectionBarProps {
   totalCount: number
   canMove?: boolean
   canDelete?: boolean
+  moveLabel?: string
   onSelectAll: () => void
   onClearSelection: () => void
   onMove: () => void
@@ -17,6 +18,7 @@ export function FoldersSelectionBar({
   totalCount,
   canMove = true,
   canDelete = true,
+  moveLabel = '移动',
   onSelectAll,
   onClearSelection,
   onMove,
@@ -54,7 +56,7 @@ export function FoldersSelectionBar({
           className="flex items-center gap-2 rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:text-outline"
         >
           <FolderInput className="size-4" />
-          <span>移动</span>
+          <span>{moveLabel}</span>
         </button>
         <button
           type="button"

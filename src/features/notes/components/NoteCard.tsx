@@ -14,11 +14,12 @@ interface NoteCardProps {
   onDuplicate?: (noteId: string) => void
   selectionMode?: boolean
   selected?: boolean
+  disabled?: boolean
   onToggleSelection?: (noteId: string) => void
   onStartSelection?: (noteId: string) => void
 }
 
-export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, selectionMode = false, selected = false, onToggleSelection, onStartSelection }: NoteCardProps) {
+export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, selectionMode = false, selected = false, disabled = false, onToggleSelection, onStartSelection }: NoteCardProps) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -27,6 +28,10 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
   }
 
   function handleCardClick() {
+    if (disabled) {
+      return
+    }
+
     if (selectionMode) {
       onToggleSelection?.(note.id)
       return
@@ -37,10 +42,13 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
 
   function handleSelectionClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
+    if (disabled) {
+      return
+    }
     onToggleSelection?.(note.id)
   }
 
-  const selectionControl = selectionMode ? (
+  const selectionControl = selectionMode && !disabled ? (
     <button
       type="button"
       onClick={handleSelectionClick}
@@ -54,7 +62,7 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
     </button>
   ) : null
 
-  const cardMoreControl = selectionMode ? null : (
+  const cardMoreControl = selectionMode || disabled ? null : (
     <CardMoreControl
       note={note}
       open={menuOpen}
@@ -70,11 +78,14 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
 
   if (visual) {
     return (
-      <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'}`}>
+      <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
         <article
           onClick={handleCardClick}
+          aria-disabled={disabled || undefined}
           aria-selected={selectionMode ? selected : undefined}
-          className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card ${
+          className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
+            disabled ? 'cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-card'
+          } ${
             selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'
           }`}
         >
@@ -104,11 +115,14 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
   }
 
   return (
-    <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${featured ? 'col-span-1 row-span-2 md:col-span-2' : ''}`}>
+    <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${featured ? 'col-span-1 row-span-2 md:col-span-2' : ''} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
       <article
         onClick={handleCardClick}
+        aria-disabled={disabled || undefined}
         aria-selected={selectionMode ? selected : undefined}
-        className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card ${
+        className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-card'
+        } ${
         featured ? 'p-6' : 'p-5'
       } ${selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'}`}
       >
