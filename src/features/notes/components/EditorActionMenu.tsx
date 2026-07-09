@@ -1,4 +1,4 @@
-import { Archive, Download, FolderInput, History, Info, Trash2 } from 'lucide-react'
+import { Download, FolderInput, History, Info, Trash2 } from 'lucide-react'
 
 interface EditorActionMenuProps {
   onShowInfo: () => void
@@ -21,9 +21,6 @@ export function EditorActionMenu({ onShowInfo, onShowHistory, onShowExport, onMo
       </button>
       <button type="button" className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary">
         <FolderInput className="size-4" /> 移动到文件夹
-      </button>
-      <button type="button" className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary">
-        <Archive className="size-4" /> 归档
       </button>
       <div className="my-1 border-t border-outline-variant/20" />
       <button type="button" onClick={onMoveToTrash} className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-error hover:bg-error-container/20">

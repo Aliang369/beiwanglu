@@ -1,6 +1,7 @@
 import { Info, SearchX, Tags, Trash } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
+import { ConfirmDialog } from './ConfirmDialog'
 import { EmptyState } from './EmptyState'
 import { NoteViewSwitcher, type NoteViewMode } from './NoteViewSwitcher'
 import { TrashEmptyState } from './TrashEmptyState'
@@ -15,14 +16,37 @@ interface TrashViewProps {
   onClearSearch?: () => void
   onClearTagFilter?: () => void
   onViewAll?: () => void
+  onRestoreNote?: (noteId: string) => void
+  onPermanentlyDeleteNote?: (noteId: string) => void | Promise<void>
+  onEmptyTrash?: () => void | Promise<void>
 }
 
-export function TrashView({ notes, totalCount, query = '', tagId = null, onClearSearch, onClearTagFilter, onViewAll }: TrashViewProps) {
+type TrashConfirmState =
+  | { type: 'delete'; note: Note }
+  | { type: 'empty' }
+  | null
+
+export function TrashView({ notes, totalCount, query = '', tagId = null, onClearSearch, onClearTagFilter, onViewAll, onRestoreNote, onPermanentlyDeleteNote, onEmptyTrash }: TrashViewProps) {
   const [viewMode, setViewMode] = useState<NoteViewMode>('grid')
+  const [confirmState, setConfirmState] = useState<TrashConfirmState>(null)
   const trimmedQuery = query.trim()
   const hasSearch = trimmedQuery.length > 0
   const hasFilter = Boolean(tagId)
   const countLabel = hasSearch || hasFilter ? `当前显示 ${notes.length} / 共 ${totalCount} 篇已删除笔记` : '笔记将在 30 天后永久删除'
+
+  async function handleConfirm() {
+    if (!confirmState) {
+      return
+    }
+
+    if (confirmState.type === 'delete') {
+      await onPermanentlyDeleteNote?.(confirmState.note.id)
+    } else {
+      await onEmptyTrash?.()
+    }
+
+    setConfirmState(null)
+  }
 
   return (
     <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
@@ -36,14 +60,16 @@ export function TrashView({ notes, totalCount, query = '', tagId = null, onClear
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* TODO: 接入清空废纸篓逻辑。 */}
-            {notes.length > 0 ? <button
-              type="button"
-              className="flex cursor-pointer items-center gap-2 rounded-full bg-error-container/40 px-6 py-2.5 font-label-md text-label-md text-error shadow-sm transition-colors duration-200 hover:bg-error-container/60 hover:shadow-md active:scale-95"
-            >
-              <Trash className="size-5" />
-              清空废纸篓
-            </button> : null}
+            {notes.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setConfirmState({ type: 'empty' })}
+                className="flex cursor-pointer items-center gap-2 rounded-full bg-error-container/40 px-6 py-2.5 font-label-md text-label-md text-error shadow-sm transition-colors duration-200 hover:bg-error-container/60 hover:shadow-md active:scale-95"
+              >
+                <Trash className="size-5" />
+                清空废纸篓
+              </button>
+            ) : null}
             {notes.length > 0 ? <NoteViewSwitcher value={viewMode} onChange={setViewMode} /> : null}
           </div>
         </div>
@@ -52,14 +78,25 @@ export function TrashView({ notes, totalCount, query = '', tagId = null, onClear
           <>
             {viewMode === 'list' ? (
               <div className="space-y-4 pb-24">
-                {notes.map((note, index) => (
-                  <TrashNoteListItem key={note.id} note={note} index={index} />
+                {notes.map((note) => (
+                  <TrashNoteListItem
+                    key={note.id}
+                    note={note}
+                    onRestore={onRestoreNote}
+                    onPermanentlyDelete={() => setConfirmState({ type: 'delete', note })}
+                  />
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {notes.map((note, index) => (
-                  <TrashNoteCard key={note.id} note={note} index={index} />
+                  <TrashNoteCard
+                    key={note.id}
+                    note={note}
+                    index={index}
+                    onRestore={onRestoreNote}
+                    onPermanentlyDelete={() => setConfirmState({ type: 'delete', note })}
+                  />
                 ))}
               </div>
             )}
@@ -74,6 +111,36 @@ export function TrashView({ notes, totalCount, query = '', tagId = null, onClear
           )
         )}
       </div>
+
+      {confirmState?.type === 'delete' ? (
+        <ConfirmDialog
+          description={
+            <>
+              将永久删除“{confirmState.note.title || '未命名笔记'}”。
+              <span className="mt-1 block text-error">删除后无法恢复，请确认后再继续。</span>
+            </>
+          }
+          confirmLabel="永久删除"
+          isDestructive
+          onClose={() => setConfirmState(null)}
+          onConfirm={handleConfirm}
+        />
+      ) : null}
+
+      {confirmState?.type === 'empty' ? (
+        <ConfirmDialog
+          description={
+            <>
+              将清空废纸篓中的 {notes.length} 篇笔记。
+              <span className="mt-1 block text-error">此操作不可撤销，所有内容会立刻从本地移除。</span>
+            </>
+          }
+          confirmLabel="清空废纸篓"
+          isDestructive
+          onClose={() => setConfirmState(null)}
+          onConfirm={handleConfirm}
+        />
+      ) : null}
     </main>
   )
 }

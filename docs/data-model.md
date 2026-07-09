@@ -44,6 +44,7 @@ src/shared/types/note.ts
 | `folderId` | `string \| null` | 所属文件夹 id。当前没有独立 Folder 持久化模型。 |
 | `isFavorite` | `boolean` | 是否收藏。 |
 | `isDeleted` | `boolean` | 是否在回收站。 |
+| `deletedAt` | `string \| null` | 进入废纸篓的 ISO 时间；恢复后为 `null`。旧数据缺失时回退到 `updatedAt`。 |
 | `createdAt` | `string` | ISO 格式创建时间。 |
 | `updatedAt` | `string` | ISO 格式更新时间。 |
 
@@ -120,8 +121,9 @@ interface NotesRepository {
   create(draft: NoteDraft): Promise<Note>
   update(
     id: string,
-    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted'>>,
+    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt'>>,
   ): Promise<Note>
+  delete(id: string): Promise<void>
 }
 ```
 
@@ -174,6 +176,14 @@ localStorage.removeItem('beiwanglu.notes.v1')
 ## 数据损坏回退
 
 如果 `localStorage` 中的 JSON 无法解析，`WebNotesRepository` 会重新写入 mock 数据。这个行为适合开发阶段，但生产环境中可能需要更谨慎的迁移和备份策略。
+
+## 废纸篓保留策略
+
+- 保留天数：`30` 天（`TRASH_RETENTION_DAYS`）。
+- 删除时写入 `deletedAt`；恢复时清空。
+- 加载笔记列表时，会清理已到期（剩余天数 <= 0）的废纸篓笔记。
+- UI 动态展示“N天后清除”；剩余天数 <= 3 天时用 error 语义高亮。
+- 兼容旧数据：`isDeleted=true` 但没有 `deletedAt` 时，回退使用 `updatedAt`。
 
 ## 当前限制
 

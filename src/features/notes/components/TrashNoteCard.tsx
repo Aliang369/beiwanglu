@@ -1,22 +1,24 @@
 import { Image, RotateCcw, Timer, Trash2 } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
+import { formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
 
 interface TrashNoteCardProps {
   note: Note
   index: number
+  onRestore?: (noteId: string) => void
+  onPermanentlyDelete?: () => void
 }
-
-const purgeLabels = ['2天后清除', '15天后清除', '28天后清除', '29天后清除']
 
 function trashTags(note: Note) {
   return note.tags.length > 0 ? note.tags.map((tag) => tag.name) : ['已删除']
 }
 
-export function TrashNoteCard({ note, index }: TrashNoteCardProps) {
+export function TrashNoteCard({ note, index, onRestore, onPermanentlyDelete }: TrashNoteCardProps) {
   const tags = trashTags(note)
-  const purgeLabel = purgeLabels[index % purgeLabels.length]
+  const daysRemaining = getTrashDaysRemaining(note)
+  const purgeLabel = formatTrashPurgeLabel(daysRemaining)
+  const urgent = isTrashPurgeUrgent(daysRemaining)
   const showImageSnippet = index === 2
-  const urgent = index === 0
 
   return (
     <article className="group flex h-[220px] min-w-0 flex-col overflow-hidden rounded-xl border border-dashed border-outline-variant/60 bg-gradient-to-br from-surface to-surface-container-low p-stack-md opacity-80 transition-all duration-300 hover:border-solid hover:border-outline-variant hover:opacity-100 hover:shadow-md">
@@ -57,16 +59,16 @@ export function TrashNoteCard({ note, index }: TrashNoteCardProps) {
       </div>
 
       <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-outline-variant/30 pt-3 transition-colors group-hover:border-outline-variant/60">
-        {/* TODO: 接入恢复笔记逻辑。 */}
         <button
           type="button"
+          onClick={() => onRestore?.(note.id)}
           className="flex shrink-0 items-center gap-1 rounded-full bg-primary-container/20 px-3 py-1.5 font-label-md text-label-md text-on-primary-fixed-variant transition-colors hover:bg-primary-container/40"
         >
           <RotateCcw className="size-4" /> 恢复
         </button>
-        {/* TODO: 接入永久删除逻辑。 */}
         <button
           type="button"
+          onClick={() => onPermanentlyDelete?.()}
           className="flex shrink-0 items-center gap-1 rounded-full bg-error-container/20 px-3 py-1.5 font-label-md text-label-md text-error transition-colors hover:bg-error-container/40"
         >
           <Trash2 className="size-4" /> 永久删除

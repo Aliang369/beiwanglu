@@ -1,10 +1,12 @@
 import { Bell, LogOut, Menu, RefreshCw, Search, Shield, UserRound, Users } from 'lucide-react'
+import { useState } from 'react'
 import { NotificationDropdown } from './NotificationDropdown'
 import { messageItems, type MessageItem } from './messageMockData'
 
 interface ToolbarProps {
   query: string
   onQueryChange: (query: string) => void
+  onRefresh?: () => void | Promise<void>
   onProfileClick?: () => void
   onAccountSettingsClick?: () => void
   onSwitchAccountClick?: () => void
@@ -13,7 +15,31 @@ interface ToolbarProps {
   onMessageOpen?: (message: MessageItem) => void
 }
 
-export function Toolbar({ query, onQueryChange, onProfileClick, onAccountSettingsClick, onSwitchAccountClick, onLogoutClick, onMessagesClick, onMessageOpen }: ToolbarProps) {
+export function Toolbar({ query, onQueryChange, onRefresh, onProfileClick, onAccountSettingsClick, onSwitchAccountClick, onLogoutClick, onMessagesClick, onMessageOpen }: ToolbarProps) {
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    if (!onRefresh || isRefreshing) {
+      return
+    }
+
+    setIsRefreshing(true)
+    const startedAt = Date.now()
+
+    try {
+      await onRefresh()
+    } finally {
+      const elapsed = Date.now() - startedAt
+      const remaining = Math.max(0, 500 - elapsed)
+
+      if (remaining > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining))
+      }
+
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <header className="sticky top-0 z-10 flex h-16 w-full items-center justify-between border-b border-outline-variant bg-surface px-gutter text-primary">
       <div className="flex items-center gap-4 md:hidden">
@@ -40,9 +66,17 @@ export function Toolbar({ query, onQueryChange, onProfileClick, onAccountSetting
       <div className="ml-auto flex items-center gap-2 md:gap-4">
         <button
           type="button"
-          className="hidden rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary sm:block"
+          onClick={() => void handleRefresh()}
+          disabled={!onRefresh || isRefreshing}
+          aria-label="刷新笔记"
+          aria-busy={isRefreshing}
+          className={`hidden rounded-full p-2 transition-colors sm:block ${
+            isRefreshing
+              ? 'cursor-wait text-primary'
+              : 'text-on-surface-variant hover:bg-surface-container-low hover:text-primary disabled:cursor-not-allowed disabled:opacity-60'
+          }`}
         >
-          <RefreshCw className="size-5" />
+          <RefreshCw className={`size-5 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
         <div className="group relative">
           <button
