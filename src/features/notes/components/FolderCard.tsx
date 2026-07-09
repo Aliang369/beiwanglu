@@ -44,22 +44,41 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
     setMenuOpen(false)
   }
 
-  const metaParts = [`${folder.noteCount} 篇笔记`]
-  if ((folder.childCount ?? 0) > 0) {
-    metaParts.push(`${folder.childCount} 个子文件夹`)
-  }
-  metaParts.push(folder.updatedLabel)
+  const countLabel = (folder.childCount ?? 0) > 0
+    ? `${folder.noteCount} 篇笔记 · ${folder.childCount} 个子文件夹`
+    : `${folder.noteCount} 篇笔记`
 
   return (
-    <article
-      onClick={() => (selectionMode ? onToggle(folder.id) : onOpen?.(folder.id))}
-      aria-selected={selectionMode ? selected : undefined}
-      className={`group relative flex cursor-pointer flex-col rounded-xl p-5 transition-all ${menuOpen ? 'z-30' : 'z-0'} ${
-        selected
-          ? 'border-2 border-primary bg-inverse-on-surface shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20'
-          : 'border border-outline-variant bg-surface-container-lowest shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-primary-fixed-dim hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]'
-      }`}
-    >
+    <div className={`group relative h-full ${menuOpen ? 'z-30' : 'z-0'}`}>
+      <article
+        onClick={() => (selectionMode ? onToggle(folder.id) : onOpen?.(folder.id))}
+        aria-selected={selectionMode ? selected : undefined}
+        className={`flex h-full min-h-44 cursor-pointer flex-col rounded-xl p-5 transition-all ${
+          selected
+            ? 'border-2 border-primary bg-inverse-on-surface shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20'
+            : 'border border-outline-variant bg-surface-container-lowest shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:border-primary-fixed-dim hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]'
+        }`}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div
+            className={`flex size-12 shrink-0 items-center justify-center rounded-lg transition-colors ${
+              selected ? 'bg-primary/10 text-primary' : 'bg-surface-container-highest text-primary group-hover:bg-primary-container group-hover:text-on-primary'
+            }`}
+          >
+            <Icon className="size-6" />
+          </div>
+          {/* 与笔记卡片一致：预留右上角菜单/选择控件空间 */}
+          <div className="size-8 shrink-0" />
+        </div>
+
+        <h3 className="mb-2 line-clamp-2 min-h-[2.75rem] font-headline-sm text-headline-sm text-on-surface">{folder.name}</h3>
+
+        <div className={`mt-auto flex items-end justify-between gap-3 pt-4 ${selected ? 'text-primary' : 'text-on-surface-variant'}`}>
+          <p className="min-w-0 flex-1 truncate font-label-sm text-label-sm opacity-90">{countLabel}</p>
+          <p className="shrink-0 font-label-sm text-label-sm text-outline">{folder.updatedLabel}</p>
+        </div>
+      </article>
+
       {selectionMode ? (
         <button
           type="button"
@@ -69,35 +88,29 @@ export function FolderCard({ folder, selectionMode, selected, onToggle, onStartS
           }}
           aria-label={selected ? '取消选择文件夹' : '选择文件夹'}
           aria-pressed={selected}
-          className={`absolute right-4 top-4 z-10 flex size-6 items-center justify-center rounded-full transition-colors ${
-            selected ? 'bg-primary text-on-primary shadow-sm' : 'border-2 border-outline-variant bg-surface group-hover:border-outline'
+          className={`absolute top-3 right-3 z-50 flex size-8 items-center justify-center rounded-full transition-colors ${
+            selected
+              ? 'bg-primary text-on-primary shadow-sm'
+              : 'border-2 border-outline-variant bg-surface-container-lowest/85 text-on-surface-variant backdrop-blur-md hover:border-primary hover:text-primary'
           }`}
         >
           {selected ? <Check className="size-4" /> : null}
         </button>
       ) : (
-        <FolderMoreControl
-          open={menuOpen}
-          onToggle={setMenuOpen}
-          onClose={closeMenu}
-          protectedFolder={folder.protected}
-          onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
-          onRename={onRename ? () => onRename(folder.id) : undefined}
-          onMove={onMove ? () => onMove(folder.id) : undefined}
-          onDelete={onDelete ? () => onDelete(folder.id) : undefined}
-        />
+        <div className="absolute top-3 right-3 z-50">
+          <FolderMoreControl
+            open={menuOpen}
+            onToggle={setMenuOpen}
+            onClose={closeMenu}
+            protectedFolder={folder.protected}
+            onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
+            onRename={onRename ? () => onRename(folder.id) : undefined}
+            onMove={onMove ? () => onMove(folder.id) : undefined}
+            onDelete={onDelete ? () => onDelete(folder.id) : undefined}
+          />
+        </div>
       )}
-
-      <div
-        className={`mb-4 flex size-12 items-center justify-center rounded-lg transition-colors ${
-          selected ? 'bg-primary/10 text-primary' : 'bg-surface-container-highest text-primary group-hover:bg-primary-container group-hover:text-on-primary'
-        }`}
-      >
-        <Icon className="size-6" />
-      </div>
-      <h3 className="mb-1 truncate pr-8 font-headline-sm text-headline-sm text-on-surface">{folder.name}</h3>
-      <p className={`font-label-sm text-label-sm ${selected ? 'text-primary opacity-80' : 'text-on-surface-variant'}`}>{metaParts.join(' · ')}</p>
-    </article>
+    </div>
   )
 }
 
@@ -129,7 +142,7 @@ export function FolderMoreControl({
 
   return (
     <div
-      className={`z-30 w-max ${variant === 'card' ? 'absolute right-4 top-4' : 'relative'}`}
+      className={`z-30 w-max ${variant === 'card' ? 'relative' : 'relative'}`}
       onClick={(event) => event.stopPropagation()}
       onMouseEnter={() => onToggle(true)}
       onMouseLeave={() => onToggle(false)}

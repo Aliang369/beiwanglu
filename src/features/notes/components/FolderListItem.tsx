@@ -51,11 +51,9 @@ export function FolderListItem({
     onOpen?.(folder.id)
   }
 
-  const metaParts = [`${folder.noteCount} 篇笔记`]
-  if ((folder.childCount ?? 0) > 0) {
-    metaParts.push(`${folder.childCount} 个子文件夹`)
-  }
-  metaParts.push(folder.updatedLabel)
+  const countLabel = (folder.childCount ?? 0) > 0
+    ? `${folder.noteCount} 篇笔记 · ${folder.childCount} 个子文件夹`
+    : `${folder.noteCount} 篇笔记`
 
   return (
     <article
@@ -81,18 +79,17 @@ export function FolderListItem({
           {selected ? <Check className="size-5" /> : <Icon className="size-5" />}
         </button>
       ) : (
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-surface-container-highest text-primary transition-colors group-hover:bg-primary-container group-hover:text-on-primary">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-high text-primary shadow-sm">
           <Icon className="size-6" />
         </div>
       )}
 
       <div className="min-w-0 flex-1">
-        <h3 className="mb-1 truncate font-headline-sm text-headline-sm text-on-surface transition-colors group-hover:text-primary">{folder.name}</h3>
-        <p className="font-body-md text-body-md text-on-surface-variant">{metaParts.join(' · ')}</p>
+        <h3 className="truncate font-headline-sm text-headline-sm text-on-surface transition-colors group-hover:text-primary">{folder.name}</h3>
       </div>
 
       {!selectionMode ? (
-        <div className="shrink-0">
+        <div className="ml-0 flex shrink-0 items-center gap-1 opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 lg:ml-4">
           <FolderMoreControl
             open={menuOpen}
             onToggle={setMenuOpen}
@@ -106,6 +103,11 @@ export function FolderListItem({
           />
         </div>
       ) : null}
+
+      <div className="hidden shrink-0 text-right sm:block">
+        <p className="font-label-md text-label-md font-medium text-on-surface">{folder.updatedLabel}</p>
+        <p className="font-label-sm text-label-sm text-outline">{countLabel}</p>
+      </div>
     </article>
   )
 }
