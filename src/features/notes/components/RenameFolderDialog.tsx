@@ -15,7 +15,6 @@ export function RenameFolderDialog({ initialName, existingNames = [], onClose, o
   const errorId = useId()
   const trimmed = name.trim()
   const initialTrimmed = initialName.trim()
-  const remaining = 40 - name.length
   const unchanged = trimmed === initialTrimmed
 
   useEffect(() => {
@@ -100,16 +99,11 @@ export function RenameFolderDialog({ initialName, existingNames = [], onClose, o
                   : 'border-outline-variant/70 focus:border-primary focus:ring-primary/25'
               }`}
             />
-            <div className="mt-2 flex items-start justify-between gap-3">
-              {error ? (
-                <p id={errorId} role="alert" className="font-label-sm text-label-sm text-error">
-                  {error}
-                </p>
-              ) : (
-                <p className="font-label-sm text-label-sm text-on-surface-variant">当前：{initialName}</p>
-              )}
-              <span className={`shrink-0 font-label-sm text-label-sm ${remaining <= 5 ? 'text-error' : 'text-outline'}`}>{remaining}</span>
-            </div>
+            {error ? (
+              <p id={errorId} role="alert" className="mt-2 font-label-sm text-label-sm text-error">
+                {error}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-end gap-3 px-6 pb-6 pt-2">
