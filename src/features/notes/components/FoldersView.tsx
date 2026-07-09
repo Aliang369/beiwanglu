@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ArrowLeft, FileText, SearchX, Star, Tags, Trash2 } from 'lucide-react'
 import type { Folder } from '../../../shared/types/folder'
 import { isProtectedFolderId } from '../../../shared/types/folder'
@@ -66,6 +66,7 @@ export function FoldersView({
   onDeleteFolders,
 }: FoldersViewProps) {
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
+  const selectionBeforeSelectAllRef = useRef<string[] | null>(null)
   const [viewMode, setViewMode] = useState<NoteViewMode>('grid')
   const [detailViewMode, setDetailViewMode] = useState<NoteViewMode>('grid')
   const [createOpen, setCreateOpen] = useState(false)
@@ -132,12 +133,28 @@ export function FoldersView({
   }
 
   function clearSelection() {
+    selectionBeforeSelectAllRef.current = null
     setSelectedFolderIds([])
   }
 
   function selectAllVisible() {
-    const ids = (activeFolder ? childFolderItems : visibleRootFolderItems).map((folder) => folder.id)
+    const items = activeFolder ? childFolderItems : visibleRootFolderItems
+    const ids = items.map((folder) => folder.id)
+    const currentVisibleSelected = selectedFolderIds.filter((id) => items.some((folder) => folder.id === id))
+    selectionBeforeSelectAllRef.current = currentVisibleSelected
     setSelectedFolderIds(ids)
+  }
+
+  function restoreSelectionBeforeSelectAll() {
+    const snapshot = selectionBeforeSelectAllRef.current
+    selectionBeforeSelectAllRef.current = null
+
+    if (snapshot && snapshot.length > 0) {
+      setSelectedFolderIds(snapshot)
+      return
+    }
+
+    clearSelection()
   }
 
   function openFolder(folderId: string) {
@@ -409,7 +426,7 @@ export function FoldersView({
               canMove={canMoveSelected}
               canDelete={canDeleteSelected}
               onSelectAll={selectAllVisible}
-              onClearSelection={clearSelection}
+              onClearSelection={restoreSelectionBeforeSelectAll}
               onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
               onDelete={() => openDelete(selectedVisibleIds)}
               onClear={clearSelection}
@@ -484,7 +501,7 @@ export function FoldersView({
             canMove={canMoveSelected}
             canDelete={canDeleteSelected}
             onSelectAll={selectAllVisible}
-            onClearSelection={clearSelection}
+            onClearSelection={restoreSelectionBeforeSelectAll}
             onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
             onDelete={() => openDelete(selectedVisibleIds)}
             onClear={clearSelection}
