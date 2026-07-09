@@ -118,7 +118,11 @@ export function NoteList({
           canDelete={Boolean(onMoveToTrash)}
           moveLabel="移动到文件夹"
           onSelectAll={() => selection.selectAllVisible(visibleIds)}
-          onClearSelection={selection.restoreBeforeSelectAll}
+          onClearSelection={() => {
+            if (selection.restoreBeforeSelectAll() === 'cleared') {
+              setBulkMoveOpen(false)
+            }
+          }}
           onMove={() => setBulkMoveOpen(true)}
           onDelete={() => void handleBulkMoveToTrash()}
           onClear={clearNoteSelection}

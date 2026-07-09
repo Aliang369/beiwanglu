@@ -60,16 +60,17 @@ export function useIdSelection(options: UseIdSelectionOptions = {}) {
     [runBeforeChange, selectedIds],
   )
 
-  const restoreBeforeSelectAll = useCallback(() => {
+  const restoreBeforeSelectAll = useCallback((): 'restored' | 'cleared' => {
     const snapshot = beforeSelectAllRef.current
     beforeSelectAllRef.current = null
 
     if (snapshot && snapshot.length > 0) {
       setSelectedIds(snapshot)
-      return
+      return 'restored'
     }
 
     clear()
+    return 'cleared'
   }, [clear])
 
   return {
