@@ -44,6 +44,7 @@ export function MoveToFolderDialog({
       description={dialogDescription}
       options={options}
       initialId={resolvedInitialFolderId}
+      unchangedId={resolvedCurrentFolderId}
       disableWhenUnchanged={disableWhenUnchanged}
       variant="compact"
       onClose={onClose}

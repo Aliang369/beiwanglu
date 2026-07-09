@@ -36,7 +36,7 @@ export function DashedCreate({ label, onClick, disabled = false, layout, iconVar
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-h-44 flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition-all ${
+      className={`flex min-h-40 flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition-all ${
         disabled
           ? 'cursor-not-allowed border-outline-variant bg-surface opacity-50 text-outline'
           : 'cursor-pointer border-outline-variant/50 bg-surface-container-lowest text-primary hover:border-primary hover:bg-surface-container-low'

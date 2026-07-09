@@ -24,10 +24,6 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
 
-  function closeMenu() {
-    setMenuOpen(false)
-  }
-
   function handleCardClick() {
     handleSelectableActivate({
       disabled,
@@ -52,7 +48,6 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
       note={note}
       open={menuOpen}
       onToggle={setMenuOpen}
-      onClose={closeMenu}
       onToggleFavorite={onToggleFavorite}
       onMoveToTrash={onMoveToTrash}
       onRequestMoveToFolder={onRequestMoveToFolder}
@@ -151,8 +146,7 @@ function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
   )
 }
 
-function CardMoreControl({ note, open, onToggle, onClose, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, onStartSelection }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onClose: () => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onDuplicate?: (noteId: string) => void; onStartSelection?: () => void }) {
-  void onClose
+function CardMoreControl({ note, open, onToggle, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, onStartSelection }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onDuplicate?: (noteId: string) => void; onStartSelection?: () => void }) {
   const items: HoverMenuItem[] = [
     {
       key: 'favorite',

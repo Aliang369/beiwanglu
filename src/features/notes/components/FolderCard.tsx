@@ -34,10 +34,6 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
   const Icon = getFolderIcon(folder.icon)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  function closeMenu() {
-    setMenuOpen(false)
-  }
-
   const countLabel = (folder.childCount ?? 0) > 0
     ? `${folder.noteCount} 篇笔记 · ${folder.childCount} 个子文件夹`
     : `${folder.noteCount} 篇笔记`
@@ -95,7 +91,6 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
           <FolderMoreControl
             open={menuOpen}
             onToggle={setMenuOpen}
-            onClose={closeMenu}
             protectedFolder={folder.protected}
             onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
             onRename={onRename ? () => onRename(folder.id) : undefined}
@@ -111,7 +106,6 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
 export function FolderMoreControl({
   open,
   onToggle,
-  onClose,
   onStartSelection,
   onRename,
   onMove,
@@ -121,7 +115,6 @@ export function FolderMoreControl({
 }: {
   open: boolean
   onToggle: (open: boolean) => void
-  onClose: () => void
   onStartSelection?: () => void
   onRename?: () => void
   onMove?: () => void
@@ -129,7 +122,6 @@ export function FolderMoreControl({
   protectedFolder?: boolean
   variant?: 'card' | 'inline'
 }) {
-  void onClose
   const items: HoverMenuItem[] = [
     { key: 'rename', label: '重命名', icon: Edit3, hidden: !onRename, onSelect: () => onRename?.() },
     { key: 'move', label: '移动', icon: FolderInput, hidden: protectedFolder || !onMove, onSelect: () => onMove?.() },

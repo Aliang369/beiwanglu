@@ -15,7 +15,12 @@ export interface DestinationPickerDialogProps {
   description?: string
   options: DestinationOption[]
   initialId?: string | null
-  /** 与 initial 相同则禁用提交（用于「未改动」） */
+  /**
+   * 与「当前归属」比较：选中仍等于该 id 时禁用提交。
+   * 未传时回退到 initialId（与旧 MoveFolder 行为接近）。
+   */
+  unchangedId?: string | null
+  /** 启用「未改动则禁用提交」 */
   disableWhenUnchanged?: boolean
   /** 视觉变体：compact 带关闭按钮与图标头；simple 纯标题描述 */
   variant?: 'simple' | 'compact'
@@ -31,6 +36,7 @@ export function DestinationPickerDialog({
   description,
   options,
   initialId = null,
+  unchangedId,
   disableWhenUnchanged = false,
   variant = 'simple',
   emptyText = '没有可移动的目标位置。',
@@ -43,7 +49,9 @@ export function DestinationPickerDialog({
   const titleId = useId()
   const firstOptionRef = useRef<HTMLButtonElement>(null)
   const selectedOption = options.find((option) => option.id === selectedId)
-  const isUnchanged = disableWhenUnchanged && selectedId === initialId
+  // 与「当前」比，而非仅与打开时的初始选中比（恢复 MoveToFolder 旧语义）
+  const baselineUnchangedId = unchangedId !== undefined ? unchangedId : initialId
+  const isUnchanged = disableWhenUnchanged && selectedId === baselineUnchangedId
   const enabledOptions = options.filter((option) => !option.disabled)
   const canSubmit =
     Boolean(selectedOption) && !selectedOption?.disabled && enabledOptions.length > 0 && !isUnchanged && !isSubmitting

@@ -32,10 +32,6 @@ export function FolderListItem({
   const Icon = getFolderIcon(folder.icon)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  function closeMenu() {
-    setMenuOpen(false)
-  }
-
   function handleClick() {
     handleSelectableActivate({
       disabled,
@@ -83,7 +79,6 @@ export function FolderListItem({
           <FolderMoreControl
             open={menuOpen}
             onToggle={setMenuOpen}
-            onClose={closeMenu}
             protectedFolder={folder.protected}
             onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
             onRename={onRename ? () => onRename(folder.id) : undefined}
