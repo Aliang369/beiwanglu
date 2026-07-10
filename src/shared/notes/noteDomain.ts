@@ -1,4 +1,8 @@
+// 改动：buildNewNote / applyNotePatch 支持 cover；导出 DEFAULT_COVER_URL
 import type { Note, NoteDraft } from '../types/note'
+
+/** 设置封面时 prompt 的默认图片 URL（沿用原硬编码封面链接）。 */
+export const DEFAULT_COVER_URL = 'https://placewaifu.com/image/800/450'
 
 /** 废纸篓保留天数。 */
 export const TRASH_RETENTION_DAYS = 30
@@ -7,6 +11,10 @@ export const TRASH_RETENTION_DAYS = 30
 export const TRASH_URGENT_DAYS = 3
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+export type NotePatch = Partial<
+  Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>
+>
 
 export function createExcerpt(content: string) {
   return content.replace(/\s+/g, ' ').trim().slice(0, 96)
@@ -17,7 +25,7 @@ export function sortNotesByUpdatedAt(notes: Note[]) {
 }
 
 export function buildNewNote(draft: NoteDraft, id: string, now: string): Note {
-  return {
+  const note: Note = {
     id,
     title: draft.title,
     content: draft.content,
@@ -30,19 +38,30 @@ export function buildNewNote(draft: NoteDraft, id: string, now: string): Note {
     createdAt: now,
     updatedAt: now,
   }
+
+  if (typeof draft.cover === 'string' && draft.cover.trim()) {
+    note.cover = draft.cover.trim()
+  }
+
+  return note
 }
 
-export function applyNotePatch(
-  note: Note,
-  patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt'>>,
-  now: string,
-): Note {
+export function applyNotePatch(note: Note, patch: NotePatch, now: string): Note {
   const content = patch.content ?? note.content
+  const { cover: patchCover, ...restPatch } = patch
+
   const next: Note = {
     ...note,
-    ...patch,
+    ...restPatch,
     excerpt: createExcerpt(content),
     updatedAt: now,
+  }
+
+  // cover：null 删除；字符串设置；undefined 保留原值
+  if (patchCover === null) {
+    delete next.cover
+  } else if (typeof patchCover === 'string') {
+    next.cover = patchCover
   }
 
   if (patch.isDeleted === true && note.isDeleted !== true) {
@@ -77,11 +96,18 @@ export function normalizeNote(raw: Note, now = new Date().toISOString()): Note {
     deletedAt = null
   }
 
-  return {
+  const note: Note = {
     ...raw,
     isDeleted,
     deletedAt,
   }
+
+  // 规范化 cover：空字符串视为无封面
+  if (note.cover === '' || note.cover === null) {
+    delete note.cover
+  }
+
+  return note
 }
 
 export function normalizeNotes(notes: Note[], now = new Date().toISOString()) {

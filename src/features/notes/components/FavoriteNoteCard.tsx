@@ -1,3 +1,4 @@
+// 改动：featured 变体用 note.cover 渲染封面，无封面时使用默认占位背景
 import { CheckCircle2, Circle, Image, Star, UsersRound } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt, getNoteTagNames } from '../../../shared/notes/noteSelectors'
@@ -16,12 +17,19 @@ export function FavoriteNoteCard({ note, variant = 'default', onSelect }: Favori
   const tags = getNoteTagNames(note, ['收藏'])
   const primaryTag = tags[0]
   const updatedAt = formatUpdatedAt(note.updatedAt)
+  const hasCover = Boolean(note.cover)
 
   if (variant === 'featured') {
     return (
       <article onClick={() => onSelect?.(note.id)} className="group relative col-span-1 row-span-2 flex cursor-pointer flex-col overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest transition-all duration-300 hover:shadow-card md:col-span-2">
         <div className="relative h-48 w-full overflow-hidden bg-surface-container-low">
-          <img src="https://placewaifu.com/image/800/450" alt="收藏笔记封面" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          {hasCover ? (
+            <img src={note.cover!} alt={`${note.title || '收藏笔记'}封面`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary-container/30 to-surface-container-high">
+              <Image className="size-10 text-outline/50" />
+            </div>
+          )}
           {primaryTag ? (
             <div className="absolute left-3 top-3 z-10">
               <FavoriteTag>{primaryTag}</FavoriteTag>
@@ -37,7 +45,7 @@ export function FavoriteNoteCard({ note, variant = 'default', onSelect }: Favori
           </h3>
           <p className="mb-6 line-clamp-3 font-body-md text-body-md text-on-surface-variant">{note.excerpt || note.content}</p>
           <div className="mt-auto flex items-center justify-between border-t border-outline-variant/10 pt-4 font-label-sm text-label-sm text-on-surface-variant">
-            <Image className="size-4 text-outline" />
+            {hasCover ? <Image className="size-4 text-outline" /> : <span />}
             <span className="ml-auto text-outline">{updatedAt}</span>
           </div>
         </div>

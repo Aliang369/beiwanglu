@@ -1,4 +1,5 @@
-import { Download, FileImage, FileText, Image, Minus, Plus, X } from 'lucide-react'
+// 改动：移除右上角 X，关闭统一用底部取消
+import { Download, FileImage, FileText, Image, Minus, Plus } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface EditorExportOverlayProps {
@@ -16,9 +17,8 @@ export function EditorExportOverlay({ onClose }: EditorExportOverlayProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-background/20 backdrop-blur-sm">
       <div className="flex h-[580px] w-full max-w-[880px] overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-modal">
         <div className="flex w-[360px] flex-col border-r border-outline-variant bg-surface-container-lowest">
-          <div className="flex items-center justify-between border-b border-outline-variant/50 px-6 py-5">
+          <div className="border-b border-outline-variant/50 px-6 py-5">
             <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">导出选项</h2>
-            <button type="button" onClick={onClose} className="rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"><X className="size-5" /></button>
           </div>
           <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
             <section>

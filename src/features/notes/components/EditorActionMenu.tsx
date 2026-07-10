@@ -1,13 +1,25 @@
-import { Download, FolderInput, History, Info, Trash2 } from 'lucide-react'
+// 改动：增加设置/更换/移除封面菜单项
+import { Download, FolderInput, History, ImageOff, ImagePlus, Info, Trash2 } from 'lucide-react'
 
 interface EditorActionMenuProps {
+  hasCover?: boolean
   onShowInfo: () => void
   onShowHistory: () => void
   onShowExport: () => void
+  onSetCover?: () => void
+  onRemoveCover?: () => void
   onMoveToTrash: () => void
 }
 
-export function EditorActionMenu({ onShowInfo, onShowHistory, onShowExport, onMoveToTrash }: EditorActionMenuProps) {
+export function EditorActionMenu({
+  hasCover = false,
+  onShowInfo,
+  onShowHistory,
+  onShowExport,
+  onSetCover,
+  onRemoveCover,
+  onMoveToTrash,
+}: EditorActionMenuProps) {
   return (
     <div className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-modal">
       <button type="button" onClick={onShowInfo} className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary">
@@ -22,6 +34,16 @@ export function EditorActionMenu({ onShowInfo, onShowHistory, onShowExport, onMo
       <button type="button" className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary">
         <FolderInput className="size-4" /> 移动到文件夹
       </button>
+      {onSetCover ? (
+        <button type="button" onClick={onSetCover} className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary">
+          <ImagePlus className="size-4" /> {hasCover ? '更换封面' : '设置封面'}
+        </button>
+      ) : null}
+      {onRemoveCover && hasCover ? (
+        <button type="button" onClick={onRemoveCover} className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary">
+          <ImageOff className="size-4" /> 移除封面
+        </button>
+      ) : null}
       <div className="my-1 border-t border-outline-variant/20" />
       <button type="button" onClick={onMoveToTrash} className="flex w-full items-center gap-3 px-4 py-2 text-left font-label-md text-label-md text-error hover:bg-error-container/20">
         <Trash2 className="size-4" /> 删除笔记

@@ -181,6 +181,24 @@ md:ml-sidebar-width
 - 使用较大圆角。
 - 背景和遮罩保持低噪声。
 - 主要操作使用 `primary` 或 `primary-container`。
+- 支持点遮罩 / `Esc` 关闭（危险提交中可禁用）。
+
+### 关闭入口收敛（置顶规则）
+
+同一浮层里**不要同时**提供「右上角 X」和底部「取消 / 关闭 / 知道了」等语义相同的 dismiss 入口。按类型统一：
+
+| 类型 | 关闭入口 | 参考实现 | 说明 |
+| --- | --- | --- | --- |
+| 表单 / 操作弹窗 | **仅底部**「取消」+ 主操作 | `FolderNameDialog`、`CoverDialog`、`ConfirmDialog`、`DestinationPickerDialog`、`EditorExportOverlay` | 需要用户明确确认或放弃；不设右上角 X |
+| 纯阅读 / 信息弹窗 | **二选一**：右上角 X **或** 底部「知道了 / 关闭」 | `MessageDetailModal`、`AgreementModal`、`EditorSharePlaceholder` | 不要两套都上；协议类可读弹窗可保留 X + 底部「关闭」中的一种 |
+| 侧栏面板 | **仅右上角 X** | `EditorInfoPanel`、`EditorHistoryPanel` | 无底部操作栏时用 X 退出 |
+| 全屏式表单壳 | **仅右上角 X** | `AuthModal` | 内容区已有主流程按钮，不重复底部取消 |
+
+补充约定：
+
+- 危险确认（删除、移除等）默认聚焦「取消」，降低误触；见 `ConfirmDialog`。
+- 主操作按钮负责「提交 / 确认 / 应用」；不要把主按钮做成第二个关闭入口，除非文案就是「知道了」且该弹窗没有 X。
+- 多选工具条上的 X（如 `SelectionBar`）表示「清除选择」，不是弹窗关闭，不受本规则约束。
 
 ### 标签
 

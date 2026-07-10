@@ -1,3 +1,4 @@
+// 改动：design-inspo 示例数据带 cover，避免 UI 硬编码
 import type { Note } from '../types/note'
 
 export const mockNotes: Note[] = [
@@ -41,6 +42,7 @@ export const mockNotes: Note[] = [
     isFavorite: true,
     isDeleted: false,
     deletedAt: null,
+    cover: 'https://placewaifu.com/image/800/450',
     createdAt: '2026-06-30T08:20:00.000Z',
     updatedAt: '2026-06-30T08:20:00.000Z',
   },

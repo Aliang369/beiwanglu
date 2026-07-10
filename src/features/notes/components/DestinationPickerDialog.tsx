@@ -1,4 +1,5 @@
-import { Check, Folder, FolderInput, X } from 'lucide-react'
+// 改动：compact 变体移除右上角 X，关闭统一用底部取消
+import { Check, Folder, FolderInput } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 
 export interface DestinationOption {
@@ -22,7 +23,7 @@ export interface DestinationPickerDialogProps {
   unchangedId?: string | null
   /** 启用「未改动则禁用提交」 */
   disableWhenUnchanged?: boolean
-  /** 视觉变体：compact 带关闭按钮与图标头；simple 纯标题描述 */
+  /** 视觉变体：compact 带图标头；simple 纯标题描述。关闭统一走底部「取消」。 */
   variant?: 'simple' | 'compact'
   emptyText?: string
   submitLabel?: string
@@ -150,9 +151,6 @@ export function DestinationPickerDialog({
                 {description ? <p className="mt-0.5 line-clamp-1 font-label-sm text-label-sm text-on-surface-variant">{description}</p> : null}
               </div>
             </div>
-            <button type="button" onClick={onClose} aria-label="关闭" className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface">
-              <X className="size-5" />
-            </button>
           </div>
           {optionList}
           <div className="flex items-center justify-end gap-3 border-t border-outline-variant/20 bg-surface-container-low px-6 py-4">

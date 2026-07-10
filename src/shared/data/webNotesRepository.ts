@@ -1,3 +1,4 @@
+// 改动：update 的 patch 类型增加 cover（实际合并逻辑在 applyNotePatch）
 import { mockNotes } from './mockNotes'
 import type { NotesRepository } from './notesRepository'
 import {
@@ -66,7 +67,7 @@ export class WebNotesRepository implements NotesRepository {
 
   async update(
     id: string,
-    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt'>>,
+    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>>,
   ) {
     const data = this.read()
     const index = data.notes.findIndex((note) => note.id === id)

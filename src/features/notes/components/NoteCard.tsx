@@ -1,18 +1,21 @@
-import { CheckSquare, Copy, FolderInput, Image, Star, Trash2 } from 'lucide-react'
+// 改动：封面设置/更换/移除改用 CoverDialog + ConfirmDialog
+import { CheckSquare, Copy, FolderInput, Image, ImageOff, ImagePlus, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
 import { handleSelectableActivate, HoverActionMenu, SelectionCheckbox, type HoverMenuItem } from '../../../shared/ui'
+import { ConfirmDialog } from './ConfirmDialog'
+import { CoverDialog } from './CoverDialog'
 
 interface NoteCardProps {
   note: Note
   featured?: boolean
-  visual?: boolean
   onSelect?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicate?: (noteId: string) => void
+  onSetCover?: (noteId: string, cover: string | null) => void
   selectionMode?: boolean
   selected?: boolean
   disabled?: boolean
@@ -20,9 +23,26 @@ interface NoteCardProps {
   onStartSelection?: (noteId: string) => void
 }
 
-export function NoteCard({ note, featured = false, visual = false, onSelect, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, selectionMode = false, selected = false, disabled = false, onToggleSelection, onStartSelection }: NoteCardProps) {
+export function NoteCard({
+  note,
+  featured = false,
+  onSelect,
+  onToggleFavorite,
+  onMoveToTrash,
+  onRequestMoveToFolder,
+  onDuplicate,
+  onSetCover,
+  selectionMode = false,
+  selected = false,
+  disabled = false,
+  onToggleSelection,
+  onStartSelection,
+}: NoteCardProps) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false)
+  const [removeCoverOpen, setRemoveCoverOpen] = useState(false)
+  const hasCover = Boolean(note.cover)
 
   function handleCardClick() {
     handleSelectableActivate({
@@ -52,85 +72,126 @@ export function NoteCard({ note, featured = false, visual = false, onSelect, onT
       onMoveToTrash={onMoveToTrash}
       onRequestMoveToFolder={onRequestMoveToFolder}
       onDuplicate={onDuplicate}
+      onOpenCoverDialog={onSetCover ? () => setCoverDialogOpen(true) : undefined}
+      onOpenRemoveCover={onSetCover && hasCover ? () => setRemoveCoverOpen(true) : undefined}
       onStartSelection={onStartSelection ? () => onStartSelection(note.id) : undefined}
     />
   )
 
-  if (visual) {
+  const dialogs = (
+    <>
+      {coverDialogOpen && onSetCover ? (
+        <CoverDialog
+          mode={hasCover ? 'change' : 'set'}
+          initialUrl={note.cover}
+          onClose={() => setCoverDialogOpen(false)}
+          onSubmit={(url) => {
+            onSetCover(note.id, url)
+            setCoverDialogOpen(false)
+          }}
+        />
+      ) : null}
+      {removeCoverOpen && onSetCover ? (
+        <ConfirmDialog
+          isDestructive
+          confirmLabel="移除封面"
+          description={
+            <>
+              将移除「{note.title || '未命名笔记'}」的封面图。
+              <span className="mt-1 block">此操作不会删除笔记本身，可随时重新设置封面。</span>
+            </>
+          }
+          onClose={() => setRemoveCoverOpen(false)}
+          onConfirm={() => {
+            onSetCover(note.id, null)
+            setRemoveCoverOpen(false)
+          }}
+        />
+      ) : null}
+    </>
+  )
+
+  if (hasCover) {
     return (
-      <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
-        <article
-          onClick={handleCardClick}
-          aria-disabled={disabled || undefined}
-          aria-selected={selectionMode ? selected : undefined}
-          className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
-            disabled ? 'cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-card'
-          } ${
-            selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'
-          }`}
-        >
-          <div className="relative h-32 w-full overflow-hidden rounded-t-xl bg-surface-container-low">
-            <img src="https://placewaifu.com/image/800/450" alt="设计灵感收集封面" className="h-full w-full object-cover" />
-            <div className="absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <CardPrimaryTag tag={primaryTag} />
+      <>
+        <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
+          <article
+            onClick={handleCardClick}
+            aria-disabled={disabled || undefined}
+            aria-selected={selectionMode ? selected : undefined}
+            className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
+              disabled ? 'cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-card'
+            } ${
+              selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'
+            }`}
+          >
+            <div className="relative h-32 w-full overflow-hidden rounded-t-xl bg-surface-container-low">
+              <img src={note.cover!} alt={`${note.title || '未命名笔记'}封面`} className="h-full w-full object-cover" />
+              <div className="absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <CardPrimaryTag tag={primaryTag} />
+                </div>
+                <div className="size-8 shrink-0" />
               </div>
-              <div className="size-8 shrink-0" />
             </div>
-          </div>
-          <div className="flex flex-1 flex-col p-5">
-            <h3 className="mb-2 line-clamp-1 font-headline-sm text-headline-sm text-on-surface">{note.title || '未命名笔记'}</h3>
-            <p className="mb-4 line-clamp-2 flex-1 font-body-md text-body-md text-on-surface-variant">
-              {note.excerpt || note.content || '开始输入内容...'}
-            </p>
-            <div className="mt-auto flex items-center justify-between">
-              <Image className="size-4 text-outline" />
-              <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
+            <div className="flex flex-1 flex-col p-5">
+              <h3 className="mb-2 line-clamp-1 font-headline-sm text-headline-sm text-on-surface">{note.title || '未命名笔记'}</h3>
+              <p className="mb-4 line-clamp-2 flex-1 font-body-md text-body-md text-on-surface-variant">
+                {note.excerpt || note.content || '开始输入内容...'}
+              </p>
+              <div className="mt-auto flex items-center justify-between">
+                <Image className="size-4 text-outline" />
+                <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
+              </div>
             </div>
-          </div>
-        </article>
-        {selectionMode ? selectionControl : cardMoreControl}
-      </div>
+          </article>
+          {selectionMode ? selectionControl : cardMoreControl}
+        </div>
+        {dialogs}
+      </>
     )
   }
 
   return (
-    <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${featured ? 'col-span-1 row-span-2 md:col-span-2' : ''} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
-      <article
-        onClick={handleCardClick}
-        aria-disabled={disabled || undefined}
-        aria-selected={selectionMode ? selected : undefined}
-        className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
-          disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-card'
-        } ${
-        featured ? 'p-6' : 'p-5'
-      } ${selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'}`}
-      >
-        {featured ? (
-          <div className="absolute top-0 right-0 size-32 rounded-bl-full bg-primary-container/10 transition-transform group-hover:scale-110" />
-        ) : null}
-        <div className={`relative z-10 flex items-start justify-between gap-3 ${featured ? 'mb-4' : 'mb-3'}`}>
-          <div className="min-w-0 flex-1">
-            <CardPrimaryTag tag={primaryTag} />
-          </div>
-          <div className="size-8 shrink-0" />
-        </div>
-        <h3 className={`relative z-10 line-clamp-1 text-on-surface ${featured ? 'mb-3 font-headline-md text-headline-md' : 'mb-2 font-headline-sm text-headline-sm'}`}>
-          {note.title || '未命名笔记'}
-        </h3>
-        <p
-          className={`relative z-10 flex-1 whitespace-pre-line font-body-md text-body-md text-on-surface-variant ${
-            featured ? 'mb-6 line-clamp-3' : 'mb-4 line-clamp-2'
-          }`}
+    <>
+      <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${featured ? 'col-span-1 row-span-2 md:col-span-2' : ''} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
+        <article
+          onClick={handleCardClick}
+          aria-disabled={disabled || undefined}
+          aria-selected={selectionMode ? selected : undefined}
+          className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-card'
+          } ${
+          featured ? 'p-6' : 'p-5'
+        } ${selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'}`}
         >
-          {note.excerpt || note.content || '开始输入内容...'}
-        </p>
-        <div className={`relative z-10 mt-auto flex items-center justify-end gap-3 ${featured ? 'border-t border-outline-variant/20 pt-4' : ''}`}>
-          <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
-        </div>
-      </article>
-      {selectionMode ? selectionControl : cardMoreControl}
-    </div>
+          {featured ? (
+            <div className="absolute top-0 right-0 size-32 rounded-bl-full bg-primary-container/10 transition-transform group-hover:scale-110" />
+          ) : null}
+          <div className={`relative z-10 flex items-start justify-between gap-3 ${featured ? 'mb-4' : 'mb-3'}`}>
+            <div className="min-w-0 flex-1">
+              <CardPrimaryTag tag={primaryTag} />
+            </div>
+            <div className="size-8 shrink-0" />
+          </div>
+          <h3 className={`relative z-10 line-clamp-1 text-on-surface ${featured ? 'mb-3 font-headline-md text-headline-md' : 'mb-2 font-headline-sm text-headline-sm'}`}>
+            {note.title || '未命名笔记'}
+          </h3>
+          <p
+            className={`relative z-10 flex-1 whitespace-pre-line font-body-md text-body-md text-on-surface-variant ${
+              featured ? 'mb-6 line-clamp-3' : 'mb-4 line-clamp-2'
+            }`}
+          >
+            {note.excerpt || note.content || '开始输入内容...'}
+          </p>
+          <div className={`relative z-10 mt-auto flex items-center justify-end gap-3 ${featured ? 'border-t border-outline-variant/20 pt-4' : ''}`}>
+            <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
+          </div>
+        </article>
+        {selectionMode ? selectionControl : cardMoreControl}
+      </div>
+      {dialogs}
+    </>
   )
 }
 
@@ -146,7 +207,31 @@ function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
   )
 }
 
-function CardMoreControl({ note, open, onToggle, onToggleFavorite, onMoveToTrash, onRequestMoveToFolder, onDuplicate, onStartSelection }: { note: Note; open: boolean; onToggle: (open: boolean) => void; onToggleFavorite?: (noteId: string) => void; onMoveToTrash?: (noteId: string) => void; onRequestMoveToFolder?: (noteId: string) => void; onDuplicate?: (noteId: string) => void; onStartSelection?: () => void }) {
+function CardMoreControl({
+  note,
+  open,
+  onToggle,
+  onToggleFavorite,
+  onMoveToTrash,
+  onRequestMoveToFolder,
+  onDuplicate,
+  onOpenCoverDialog,
+  onOpenRemoveCover,
+  onStartSelection,
+}: {
+  note: Note
+  open: boolean
+  onToggle: (open: boolean) => void
+  onToggleFavorite?: (noteId: string) => void
+  onMoveToTrash?: (noteId: string) => void
+  onRequestMoveToFolder?: (noteId: string) => void
+  onDuplicate?: (noteId: string) => void
+  onOpenCoverDialog?: () => void
+  onOpenRemoveCover?: () => void
+  onStartSelection?: () => void
+}) {
+  const hasCover = Boolean(note.cover)
+
   const items: HoverMenuItem[] = [
     {
       key: 'favorite',
@@ -155,6 +240,20 @@ function CardMoreControl({ note, open, onToggle, onToggleFavorite, onMoveToTrash
       iconFill: note.isFavorite ? 'currentColor' : 'none',
       hidden: !onToggleFavorite,
       onSelect: () => onToggleFavorite?.(note.id),
+    },
+    {
+      key: 'cover-set',
+      label: hasCover ? '更换封面' : '设置封面',
+      icon: ImagePlus,
+      hidden: !onOpenCoverDialog,
+      onSelect: () => onOpenCoverDialog?.(),
+    },
+    {
+      key: 'cover-remove',
+      label: '移除封面',
+      icon: ImageOff,
+      hidden: !onOpenRemoveCover,
+      onSelect: () => onOpenRemoveCover?.(),
     },
     {
       key: 'move',

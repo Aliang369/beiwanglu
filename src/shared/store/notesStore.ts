@@ -1,3 +1,4 @@
+// 改动：updateSelectedNote / updateNote 支持 cover；duplicateNote 复制 cover
 import { create } from 'zustand'
 import type { NotesRepository } from '../data/notesRepository'
 import {
@@ -12,6 +13,8 @@ import type { Folder, FolderDraft } from '../types/folder'
 import { isProtectedFolderId } from '../types/folder'
 import type { Note, NotesFilter, NotesView } from '../types/note'
 
+type NoteEditablePatch = Partial<Pick<Note, 'title' | 'content' | 'cover'>>
+
 export interface NotesState {
   notes: Note[]
   folders: Folder[]
@@ -22,7 +25,8 @@ export interface NotesState {
   createNote: () => Promise<Note>
   duplicateNote: (noteId: string) => Promise<void>
   selectNote: (noteId: string) => void
-  updateSelectedNote: (patch: Partial<Pick<Note, 'title' | 'content'>>) => Promise<void>
+  updateNote: (noteId: string, patch: NoteEditablePatch) => Promise<void>
+  updateSelectedNote: (patch: NoteEditablePatch) => Promise<void>
   toggleFavorite: (noteId: string) => Promise<void>
   moveToTrash: (noteId: string) => Promise<void>
   restoreNote: (noteId: string) => Promise<void>
@@ -95,6 +99,7 @@ export function createNotesStore(repository: NotesRepository) {
         content: source.content,
         tags: source.tags.map((tag) => ({ ...tag })),
         folderId: source.folderId,
+        cover: source.cover ?? null,
       })
 
       set((state) => ({
@@ -107,6 +112,17 @@ export function createNotesStore(repository: NotesRepository) {
       set({ selectedNoteId: noteId })
     },
 
+    async updateNote(noteId, patch) {
+      const exists = get().notes.some((item) => item.id === noteId)
+
+      if (!exists) {
+        return
+      }
+
+      const updated = await repository.update(noteId, patch)
+      set((state) => ({ notes: replaceNote(state.notes, updated) }))
+    },
+
     async updateSelectedNote(patch) {
       const selectedNoteId = get().selectedNoteId
 
@@ -114,8 +130,7 @@ export function createNotesStore(repository: NotesRepository) {
         return
       }
 
-      const updated = await repository.update(selectedNoteId, patch)
-      set((state) => ({ notes: replaceNote(state.notes, updated) }))
+      await get().updateNote(selectedNoteId, patch)
     },
 
     async toggleFavorite(noteId) {

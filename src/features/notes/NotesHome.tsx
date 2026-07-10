@@ -1,3 +1,4 @@
+// 改动：透传 onSetCover / updateNote 以支持封面读写
 import { useEffect, useState, type ReactNode } from 'react'
 import { Plus } from 'lucide-react'
 import { AuthModal } from '../auth/AuthModal'
@@ -30,6 +31,7 @@ export function NotesHome() {
     duplicateNote,
     selectNote,
     updateSelectedNote,
+    updateNote,
     toggleFavorite,
     moveToTrash,
     restoreNote,
@@ -229,6 +231,10 @@ export function NotesHome() {
             onRequestMoveNoteToFolder={setMovingNoteId}
             onMoveNoteToFolder={(noteId, folderId) => moveToFolder(noteId, folderId)}
             onDuplicateNote={(noteId) => duplicateNote(noteId)}
+            onSetCover={(noteId, cover) => {
+              selectNote(noteId)
+              void updateNote(noteId, { cover })
+            }}
             folderOptions={folderOptions}
             onCreateFolder={async (name, parentId) => { await createFolder({ name, parentId }) }}
             onRenameFolder={(folderId, name) => renameFolder(folderId, name)}
@@ -251,6 +257,10 @@ export function NotesHome() {
               onMoveToTrash={(noteId) => moveToTrash(noteId)}
               onRequestMoveToFolder={setMovingNoteId}
               onDuplicateNote={(noteId) => void duplicateNote(noteId)}
+              onSetCover={(noteId, cover) => {
+                selectNote(noteId)
+                void updateNote(noteId, { cover })
+              }}
               folderOptions={folderOptions}
               onMoveToFolder={(noteId, folderId) => moveToFolder(noteId, folderId)}
             />

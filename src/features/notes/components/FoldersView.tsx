@@ -1,3 +1,4 @@
+// 改动：移除 visual 硬编码；透传 onSetCover
 import { useMemo, useRef, useState } from 'react'
 import { ArrowLeft, FileText } from 'lucide-react'
 import type { Folder } from '../../../shared/types/folder'
@@ -36,6 +37,7 @@ interface FoldersViewProps {
   onRequestMoveNoteToFolder?: (noteId: string) => void
   onMoveNoteToFolder?: (noteId: string, folderId: string | null) => void | Promise<void>
   onDuplicateNote?: (noteId: string) => void | Promise<void>
+  onSetCover?: (noteId: string, cover: string | null) => void
   folderOptions?: MoveToFolderOption[]
   onCreateFolder?: (name: string, parentId: string | null) => void | Promise<void>
   onRenameFolder?: (folderId: string, name: string) => void | Promise<void>
@@ -57,6 +59,7 @@ export function FoldersView({
   onRequestMoveNoteToFolder,
   onMoveNoteToFolder,
   onDuplicateNote,
+  onSetCover,
   folderOptions = [],
   onCreateFolder,
   onRenameFolder,
@@ -271,6 +274,7 @@ export function FoldersView({
     onMoveToTrash: folderSelectionMode ? undefined : onMoveNoteToTrash,
     onRequestMoveToFolder: folderSelectionMode ? undefined : onRequestMoveNoteToFolder,
     onDuplicate: folderSelectionMode ? undefined : onDuplicateNote,
+    onSetCover: folderSelectionMode ? undefined : onSetCover,
     selectionMode: noteSelectionMode,
     onToggleSelection: folderSelectionMode ? undefined : toggleNote,
     onStartSelection: folderSelectionMode ? undefined : startNoteSelection,
@@ -448,7 +452,6 @@ export function FoldersView({
           <NoteCard
             key={`note-${note.id}`}
             note={note}
-            visual={note.id === 'design-inspo'}
             onSelect={onSelectNote}
             selected={selectedVisibleNoteIdSet.has(note.id)}
             disabled={folderSelectionMode}

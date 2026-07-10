@@ -1,3 +1,4 @@
+// 改动：移除 visual 硬编码；透传 onSetCover
 import { FileText } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
@@ -26,6 +27,7 @@ interface NoteListProps {
   onMoveToTrash?: (noteId: string) => void
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicateNote?: (noteId: string) => void
+  onSetCover?: (noteId: string, cover: string | null) => void
   folderOptions?: MoveToFolderOption[]
   onMoveToFolder?: (noteId: string, folderId: string | null) => void | Promise<void>
 }
@@ -44,6 +46,7 @@ export function NoteList({
   onMoveToTrash,
   onRequestMoveToFolder,
   onDuplicateNote,
+  onSetCover,
   folderOptions = [],
   onMoveToFolder,
 }: NoteListProps) {
@@ -68,6 +71,7 @@ export function NoteList({
     onMoveToTrash,
     onRequestMoveToFolder,
     onDuplicate: onDuplicateNote,
+    onSetCover,
   }
   const selectionActions = {
     selectionMode,
@@ -163,7 +167,6 @@ export function NoteList({
               key={note.id}
               note={note}
               featured={index === 0}
-              visual={note.id === 'design-inspo'}
               onSelect={onSelectNote}
               selected={selectedVisibleNoteIdSet.has(note.id)}
               {...selectionActions}

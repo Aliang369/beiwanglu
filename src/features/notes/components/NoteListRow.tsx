@@ -1,8 +1,11 @@
-import { CheckSquare, Copy, FileText, FolderInput, Star, Trash2 } from 'lucide-react'
+// 改动：列表菜单封面操作改用 CoverDialog / ConfirmDialog
+import { CheckSquare, Copy, FileText, FolderInput, ImageOff, ImagePlus, Star, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatClockTime, formatUpdatedAt } from '../../../shared/notes/noteSelectors'
 import { handleSelectableActivate, HoverActionMenu, SelectionCheckbox, SelectionTileIdle, type HoverMenuItem } from '../../../shared/ui'
+import { ConfirmDialog } from './ConfirmDialog'
+import { CoverDialog } from './CoverDialog'
 
 interface NoteListRowProps {
   note: Note
@@ -11,6 +14,7 @@ interface NoteListRowProps {
   onMoveToTrash?: (noteId: string) => void | Promise<void>
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicate?: (noteId: string) => void | Promise<void>
+  onSetCover?: (noteId: string, cover: string | null) => void
   selectionMode?: boolean
   selected?: boolean
   disabled?: boolean
@@ -25,6 +29,7 @@ export function NoteListRow({
   onMoveToTrash,
   onRequestMoveToFolder,
   onDuplicate,
+  onSetCover,
   selectionMode = false,
   selected = false,
   disabled = false,
@@ -33,6 +38,8 @@ export function NoteListRow({
 }: NoteListRowProps) {
   const primaryTag = note.tags[0]
   const [menuOpen, setMenuOpen] = useState(false)
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false)
+  const [removeCoverOpen, setRemoveCoverOpen] = useState(false)
 
   function handleFavoriteClick(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
@@ -108,6 +115,9 @@ export function NoteListRow({
           <NoteListRowMoreControl
             open={menuOpen}
             onOpenChange={setMenuOpen}
+            hasCover={Boolean(note.cover)}
+            onSetCover={onSetCover ? () => setCoverDialogOpen(true) : undefined}
+            onRemoveCover={onSetCover && note.cover ? () => setRemoveCoverOpen(true) : undefined}
             onMoveToFolder={onRequestMoveToFolder ? () => onRequestMoveToFolder(note.id) : undefined}
             onStartSelection={onStartSelection ? () => onStartSelection(note.id) : undefined}
             onDuplicate={onDuplicate ? () => void onDuplicate(note.id) : undefined}
@@ -119,6 +129,34 @@ export function NoteListRow({
         <p className="font-label-md text-label-md font-medium text-on-surface">{formatUpdatedAt(note.updatedAt)}</p>
         <p className="font-label-sm text-label-sm text-outline">修改于 {formatClockTime(note.updatedAt)}</p>
       </div>
+      {coverDialogOpen && onSetCover ? (
+        <CoverDialog
+          mode={note.cover ? 'change' : 'set'}
+          initialUrl={note.cover}
+          onClose={() => setCoverDialogOpen(false)}
+          onSubmit={(url) => {
+            onSetCover(note.id, url)
+            setCoverDialogOpen(false)
+          }}
+        />
+      ) : null}
+      {removeCoverOpen && onSetCover ? (
+        <ConfirmDialog
+          isDestructive
+          confirmLabel="移除封面"
+          description={
+            <>
+              将移除「{note.title || '未命名笔记'}」的封面图。
+              <span className="mt-1 block">此操作不会删除笔记本身，可随时重新设置封面。</span>
+            </>
+          }
+          onClose={() => setRemoveCoverOpen(false)}
+          onConfirm={() => {
+            onSetCover(note.id, null)
+            setRemoveCoverOpen(false)
+          }}
+        />
+      ) : null}
     </article>
   )
 }
@@ -126,18 +164,30 @@ export function NoteListRow({
 export function NoteListRowMoreControl({
   open,
   onOpenChange,
+  hasCover = false,
+  onSetCover,
+  onRemoveCover,
   onMoveToFolder,
   onStartSelection,
   onDuplicate,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  hasCover?: boolean
+  onSetCover?: () => void
+  onRemoveCover?: () => void
   onMoveToFolder?: () => void
   onStartSelection?: () => void
   onDuplicate?: () => void
 }) {
   const items: HoverMenuItem[] = []
 
+  if (onSetCover) {
+    items.push({ key: 'cover-set', label: hasCover ? '更换封面' : '设置封面', icon: ImagePlus, onSelect: onSetCover })
+  }
+  if (onRemoveCover && hasCover) {
+    items.push({ key: 'cover-remove', label: '移除封面', icon: ImageOff, onSelect: onRemoveCover })
+  }
   if (onMoveToFolder) {
     items.push({ key: 'move', label: '移动到文件夹', icon: FolderInput, onSelect: onMoveToFolder })
   }

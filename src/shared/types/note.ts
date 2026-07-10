@@ -1,3 +1,4 @@
+// 改动：Note / NoteDraft 增加可选 cover 字段（封面图片 URL）
 export type NoteTone = 'neutral' | 'danger' | 'primary'
 
 export type NotesView = 'all' | 'favorites' | 'trash' | 'folders'
@@ -19,6 +20,8 @@ export interface Note {
   isDeleted: boolean
   /** ISO 时间；进入废纸篓时写入，恢复时清空。 */
   deletedAt: string | null
+  /** 封面图片 URL；null/undefined 表示无封面。 */
+  cover?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -28,6 +31,7 @@ export interface NoteDraft {
   content: string
   tags?: NoteTag[]
   folderId?: string | null
+  cover?: string | null
 }
 
 export interface NotesFilter {

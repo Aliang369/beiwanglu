@@ -1,6 +1,9 @@
-import { ArrowLeft, CloudCheck, Expand, Image, Link, List, MoreHorizontal, Search, Share2, ShieldCheck, Star, Tags, X } from 'lucide-react'
+// 改动：编辑页封面操作改用 CoverDialog / ConfirmDialog；顶部缩略图可点更换
+import { ArrowLeft, CloudCheck, Expand, Image, Link, List, MoreHorizontal, Search, Share2, ShieldCheck, Star, Tags } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
+import { ConfirmDialog } from './ConfirmDialog'
+import { CoverDialog } from './CoverDialog'
 import { EditorActionMenu } from './EditorActionMenu'
 import { EditorEmptyState } from './EditorEmptyState'
 import { EditorExportOverlay } from './EditorExportOverlay'
@@ -14,7 +17,7 @@ type EditorMode = 'default' | 'info' | 'history' | 'immersive'
 interface EditorViewProps {
   note: Note | undefined
   onBack: () => void
-  onChange: (patch: Partial<Pick<Note, 'title' | 'content'>>) => void
+  onChange: (patch: Partial<Pick<Note, 'title' | 'content' | 'cover'>>) => void
   onToggleFavorite: (noteId: string) => void
   onMoveToTrash: (noteId: string) => void
 }
@@ -22,6 +25,8 @@ interface EditorViewProps {
 export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToTrash }: EditorViewProps) {
   const [mode, setMode] = useState<EditorMode>('default')
   const [showMenu, setShowMenu] = useState(false)
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false)
+  const [removeCoverOpen, setRemoveCoverOpen] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [saveState, setSaveState] = useState<'saved' | 'editing'>('saved')
@@ -30,7 +35,7 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
     return <EditorEmptyState onBack={onBack} />
   }
 
-  function updateNote(patch: Partial<Pick<Note, 'title' | 'content'>>) {
+  function updateNote(patch: Partial<Pick<Note, 'title' | 'content' | 'cover'>>) {
     setSaveState('editing')
     onChange(patch)
     window.setTimeout(() => setSaveState('saved'), 500)
@@ -87,7 +92,23 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
           <button type="button" onClick={() => setShowShare(true)} className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"><Share2 className="size-5" /></button>
           <button type="button" onClick={() => setMode('immersive')} className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"><Expand className="size-5" /></button>
           <button type="button" onClick={() => setShowMenu((value) => !value)} className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"><MoreHorizontal className="size-5" /></button>
-          {showMenu ? <EditorActionMenu onShowInfo={() => { setMode('info'); setShowMenu(false) }} onShowHistory={() => { setMode('history'); setShowMenu(false) }} onShowExport={() => { setShowExport(true); setShowMenu(false) }} onMoveToTrash={() => onMoveToTrash(note.id)} /> : null}
+          {showMenu ? (
+            <EditorActionMenu
+              hasCover={Boolean(note.cover)}
+              onShowInfo={() => { setMode('info'); setShowMenu(false) }}
+              onShowHistory={() => { setMode('history'); setShowMenu(false) }}
+              onShowExport={() => { setShowExport(true); setShowMenu(false) }}
+              onSetCover={() => {
+                setShowMenu(false)
+                setCoverDialogOpen(true)
+              }}
+              onRemoveCover={() => {
+                setShowMenu(false)
+                setRemoveCoverOpen(true)
+              }}
+              onMoveToTrash={() => onMoveToTrash(note.id)}
+            />
+          ) : null}
         </div>
       </header>
 
@@ -100,6 +121,16 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
             </div>
             <EditorToolbar />
             <div className="mx-auto w-full max-w-3xl flex-1">
+              {note.cover ? (
+                <button
+                  type="button"
+                  onClick={() => setCoverDialogOpen(true)}
+                  className="mb-6 block w-full overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-low transition-shadow duration-200 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  title="点击更换封面"
+                >
+                  <img src={note.cover} alt="笔记封面" className="h-40 w-full object-cover" />
+                </button>
+              ) : null}
               <input
                 value={note.title}
                 onChange={(event) => updateNote({ title: event.target.value })}
@@ -122,6 +153,34 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
         {mode === 'info' ? <EditorInfoPanel note={note} onClose={() => setMode('default')} /> : null}
         {mode === 'history' ? <EditorHistoryPanel onClose={() => setMode('default')} /> : null}
       </main>
+      {coverDialogOpen ? (
+        <CoverDialog
+          mode={note.cover ? 'change' : 'set'}
+          initialUrl={note.cover}
+          onClose={() => setCoverDialogOpen(false)}
+          onSubmit={(url) => {
+            updateNote({ cover: url })
+            setCoverDialogOpen(false)
+          }}
+        />
+      ) : null}
+      {removeCoverOpen ? (
+        <ConfirmDialog
+          isDestructive
+          confirmLabel="移除封面"
+          description={
+            <>
+              将移除「{note.title || '未命名笔记'}」的封面图。
+              <span className="mt-1 block">此操作不会删除笔记本身，可随时重新设置封面。</span>
+            </>
+          }
+          onClose={() => setRemoveCoverOpen(false)}
+          onConfirm={() => {
+            updateNote({ cover: null })
+            setRemoveCoverOpen(false)
+          }}
+        />
+      ) : null}
       {showShare ? <EditorSharePlaceholder onClose={() => setShowShare(false)} /> : null}
       {showExport ? <EditorExportOverlay onClose={() => setShowExport(false)} /> : null}
     </div>
@@ -139,14 +198,11 @@ function EditorSharePlaceholder({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-background/20 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-modal">
-        <div className="flex items-center justify-between border-b border-outline-variant/50 px-6 py-5">
+        <div className="border-b border-outline-variant/50 px-6 py-5">
           <div>
             <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">分享功能开发中</h2>
             <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">后续将支持更完整的笔记分享能力。</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface" aria-label="关闭分享占位弹窗">
-            <X className="size-5" />
-          </button>
         </div>
         <div className="space-y-3 px-6 py-5">
           {sharePlans.map(({ title, description, icon: Icon }) => (
