@@ -1,5 +1,5 @@
-// 改动：编辑页封面操作改用 CoverDialog / ConfirmDialog；顶部缩略图可点更换
-import { ArrowLeft, CloudCheck, Expand, Image, Link, List, MoreHorizontal, Search, Share2, ShieldCheck, Star, Tags } from 'lucide-react'
+// 改动：编辑页接入 TipTap 富文本编辑器，工具栏绑定 editor 命令
+import { ArrowLeft, Expand, Image, Link, MoreHorizontal, Search, Share2, ShieldCheck, Star } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -11,6 +11,9 @@ import { EditorHistoryPanel } from './EditorHistoryPanel'
 import { EditorInfoPanel } from './EditorInfoPanel'
 import { EditorMetaBar } from './EditorMetaBar'
 import { EditorToolbar } from './EditorToolbar'
+import { ImmersiveToolbar } from './ImmersiveToolbar'
+import { RichEditor } from './RichEditor'
+import { useNotesEditor } from '../hooks/useNotesEditor'
 
 type EditorMode = 'default' | 'info' | 'history' | 'immersive'
 
@@ -30,6 +33,9 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
   const [showExport, setShowExport] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [saveState, setSaveState] = useState<'saved' | 'editing'>('saved')
+
+  // editor 必须在 note 空判断之前创建，保证 hooks 顺序稳定；note 为空时传 undefined
+  const editor = useNotesEditor(note, (json) => updateNote({ content: json }))
 
   if (!note) {
     return <EditorEmptyState onBack={onBack} />
@@ -59,20 +65,12 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
             placeholder="无标题笔记..."
           />
           <EditorMetaBar note={note} className="mb-8" />
-          <textarea
-            value={note.content}
-            onChange={(event) => updateNote({ content: event.target.value })}
-            className="min-h-[560px] w-full resize-none border-none bg-transparent font-body-lg text-body-lg leading-relaxed text-on-surface outline-none placeholder:text-outline-variant focus:ring-0"
-            placeholder="从这里开始记录灵感..."
+          <RichEditor
+            editor={editor}
+            editorClassName="tiptap-content min-h-[560px] w-full border-none bg-transparent font-body-lg text-body-lg leading-relaxed text-on-surface outline-none focus:ring-0"
           />
         </article>
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full border border-outline-variant/20 bg-surface-container-lowest/90 p-2 shadow-[0_12px_40px_rgba(0,0,0,0.08)] backdrop-blur-xl">
-          <div className="flex items-center gap-1.5">
-            {[Image, Tags, List].map((Icon, index) => <button key={index} className="flex size-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-primary"><Icon className="size-5" /></button>)}
-            <div className="mx-2 h-6 w-px bg-outline-variant/30" />
-            <div className="flex items-center gap-2 px-4 pr-5"><CloudCheck className="size-4 text-primary" /><span className="font-label-sm text-label-sm text-on-surface-variant">已存草稿</span></div>
-          </div>
-        </div>
+        <ImmersiveToolbar editor={editor} saveState={saveState} />
       </main>
     )
   }
@@ -119,7 +117,7 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
               <EditorMetaBar note={note} />
               <div className="shrink-0 font-label-sm text-label-sm">{saveState === 'editing' ? '自动保存中...' : '已保存'}</div>
             </div>
-            <EditorToolbar />
+            <EditorToolbar editor={editor} />
             <div className="mx-auto w-full max-w-3xl flex-1">
               {note.cover ? (
                 <button
@@ -141,12 +139,7 @@ export function EditorView({ note, onBack, onChange, onToggleFavorite, onMoveToT
                 {note.tags.map((tag) => <span key={tag.id} className="rounded-full bg-surface-container-high px-3 py-1 font-label-sm text-label-sm text-on-surface-variant"># {tag.name}</span>)}
                 <button className="rounded-full border border-dashed border-outline-variant bg-surface-container-low px-3 py-1 font-label-sm text-label-sm text-outline-variant hover:border-primary hover:text-primary">添加标签</button>
               </div>
-              <textarea
-                value={note.content}
-                onChange={(event) => updateNote({ content: event.target.value })}
-                className="min-h-[420px] w-full resize-none border-none bg-transparent font-body-lg text-body-lg leading-relaxed text-on-surface outline-none placeholder:text-outline-variant focus:ring-0"
-                placeholder="开始输入内容..."
-              />
+              <RichEditor editor={editor} />
             </div>
           </div>
         </article>

@@ -16,15 +16,108 @@ export const TRASH_URGENT_DAYS = 3
  */
 export const EXCERPT_MAX_LENGTH = 480
 
+/** 新笔记的初始内容：一个空段落的 ProseMirror doc JSON 字符串。 */
+export const EMPTY_DOC_JSON = '{"type":"doc","content":[{"type":"paragraph"}]}'
+
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * 从 note.content 提取纯文本用于摘要/预览。
+ * - ProseMirror doc JSON 字符串：递归收集 text 节点的 text 字段，块级节点之间补换行。
+ * - 解析失败或非 doc 结构：视为纯文本/HTML 原样返回（兼容历史数据）。
+ */
+export function extractTextFromNoteContent(content: string): string {
+  if (!content) {
+    return ''
+  }
+
+  try {
+    const parsed = JSON.parse(content)
+
+    if (!parsed || parsed.type !== 'doc' || !Array.isArray(parsed.content)) {
+      return content
+    }
+
+    return collectText(parsed).replace(/\n{3,}/g, '\n\n').trim()
+  } catch {
+    return content
+  }
+}
+
+function collectText(node: { type?: string; text?: string; content?: unknown[] }): string {
+  if (typeof node.text === 'string') {
+    return node.text
+  }
+
+  if (Array.isArray(node.content)) {
+    return node.content
+      .map((child) => collectText(child as typeof node))
+      .filter(Boolean)
+      .join(node.type === 'doc' ? '\n' : '')
+  }
+
+  return ''
+}
+
+/**
+ * 从 ProseMirror doc JSON 中提取纯文本，跳过 code（行内代码）和 codeBlock（代码块）节点。
+ * 用于字数统计：代码内容不计入正文字数。
+ */
+function collectTextExcludeCode(node: { type?: string; text?: string; content?: unknown[]; marks?: unknown[] }): string {
+  // 行内代码：marks 中包含 type === 'code' 的节点跳过
+  if (typeof node.text === 'string') {
+    const marks = Array.isArray(node.marks) ? node.marks as Array<{ type: string }> : []
+    if (marks.some((mark) => mark.type === 'code')) {
+      return ''
+    }
+    return node.text
+  }
+
+  // 代码块节点整体跳过
+  if (node.type === 'codeBlock') {
+    return ''
+  }
+
+  if (Array.isArray(node.content)) {
+    return node.content
+      .map((child) => collectTextExcludeCode(child as typeof node))
+      .filter(Boolean)
+      .join(node.type === 'doc' ? '\n' : '')
+  }
+
+  return ''
+}
+
+/**
+ * 从 note.content 提取纯文本（排除代码内容），用于字数统计。
+ * - ProseMirror doc JSON：递归收集 text 节点，跳过 code marks 和 codeBlock 节点。
+ * - 解析失败或非 doc 结构：视为纯文本/HTML 原样返回。
+ */
+export function extractTextExcludeCode(content: string): string {
+  if (!content) {
+    return ''
+  }
+
+  try {
+    const parsed = JSON.parse(content)
+
+    if (!parsed || parsed.type !== 'doc' || !Array.isArray(parsed.content)) {
+      return content
+    }
+
+    return collectTextExcludeCode(parsed).replace(/\n{3,}/g, '\n\n').trim()
+  } catch {
+    return content
+  }
+}
+
+export function createExcerpt(content: string) {
+  return extractTextFromNoteContent(content).replace(/\s+/g, ' ').trim().slice(0, EXCERPT_MAX_LENGTH)
+}
 
 export type NotePatch = Partial<
   Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>
 >
-
-export function createExcerpt(content: string) {
-  return content.replace(/\s+/g, ' ').trim().slice(0, EXCERPT_MAX_LENGTH)
-}
 
 export function sortNotesByUpdatedAt(notes: Note[]) {
   return [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -34,7 +127,7 @@ export function buildNewNote(draft: NoteDraft, id: string, now: string): Note {
   const note: Note = {
     id,
     title: draft.title,
-    content: draft.content,
+    content: draft.content || EMPTY_DOC_JSON,
     excerpt: createExcerpt(draft.content),
     tags: draft.tags ?? [{ id: 'draft', name: '草稿', tone: 'primary' }],
     folderId: draft.folderId ?? null,

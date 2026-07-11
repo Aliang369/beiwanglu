@@ -1,6 +1,7 @@
 import { Image } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Note } from '../../../shared/types/note'
+import { extractTextFromNoteContent } from '../../../shared/notes/noteDomain'
 
 const cardFooterClass =
   'mt-auto flex shrink-0 items-center border-t border-outline-variant/20 pt-4'
@@ -13,8 +14,9 @@ const excerptClamp = {
 } as const
 
 function getCardPreviewText(note: Note) {
-  // 直接用正文（压空白），展示截断交给 CSS line-clamp，不再二次 slice 字数
-  const raw = (note.content || note.excerpt || '').replace(/\s+/g, ' ').trim()
+  // 优先用 excerpt（已提取的纯文本），fallback 用 extractTextFromNoteContent 解析 content
+  const text = note.excerpt || extractTextFromNoteContent(note.content || '')
+  const raw = text.replace(/\s+/g, ' ').trim()
   return raw || '开始输入内容...'
 }
 

@@ -1,6 +1,7 @@
 import { CalendarDays, Eye, FileText, Pin, Plus, Tag, Timer, X } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
+import { extractTextExcludeCode } from '../../../shared/notes/noteDomain'
 
 interface EditorInfoPanelProps {
   note: Note
@@ -8,7 +9,7 @@ interface EditorInfoPanelProps {
 }
 
 export function EditorInfoPanel({ note, onClose }: EditorInfoPanelProps) {
-  const chars = note.content.length
+  const chars = extractTextExcludeCode(note.content).replace(/\s+/g, '').length
   const readingMinutes = Math.max(1, Math.ceil(chars / 500))
 
   return (

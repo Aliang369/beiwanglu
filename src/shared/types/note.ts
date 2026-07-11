@@ -12,6 +12,11 @@ export interface NoteTag {
 export interface Note {
   id: string
   title: string
+  /**
+   * 编辑器内容。
+   * 新笔记为 ProseMirror doc 的 JSON 字符串化结果（见 noteDomain.EMPTY_DOC_JSON）。
+   * 历史纯文本/HTML 字符串在渲染时由 RichEditor 做 fallback 解析。
+   */
   content: string
   excerpt: string
   tags: NoteTag[]

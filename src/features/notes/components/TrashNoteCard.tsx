@@ -11,7 +11,7 @@ interface TrashNoteCardProps {
   onPermanentlyDelete?: () => void
 }
 
-export function TrashNoteCard({ note, index, onRestore, onPermanentlyDelete }: TrashNoteCardProps) {
+export function TrashNoteCard({ note, onRestore, onPermanentlyDelete }: TrashNoteCardProps) {
   const tags = getNoteTagNames(note, ['已删除'])
   const daysRemaining = getTrashDaysRemaining(note)
   const purgeLabel = formatTrashPurgeLabel(daysRemaining)

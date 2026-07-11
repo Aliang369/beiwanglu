@@ -95,3 +95,300 @@
     -webkit-line-clamp: 3;
   }
 }
+
+/* TipTap / ProseMirror 编辑区样式 */
+@layer components {
+  .tiptap-content :where(h1) {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 1.25rem 0 0.75rem;
+  }
+
+  .tiptap-content :where(h2) {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 1.1rem 0 0.6rem;
+  }
+
+  .tiptap-content :where(h3) {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem;
+  }
+
+  .tiptap-content :where(p) {
+    margin: 0.5rem 0;
+  }
+
+  .tiptap-content :where(ul, ol) {
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+  }
+
+  .tiptap-content :where(ul) {
+    list-style: disc;
+  }
+
+  .tiptap-content :where(ol) {
+    list-style: decimal;
+  }
+
+  .tiptap-content :where(li) {
+    margin: 0.2rem 0;
+  }
+
+  .tiptap-content :where(li > p) {
+    margin: 0;
+  }
+
+  /* 任务清单 */
+  .tiptap-content :where(ul[data-type="taskList"]) {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .tiptap-content :where(ul[data-type="taskList"] li) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tiptap-content :where(ul[data-type="taskList"] li > label) {
+    flex-shrink: 0;
+  }
+
+  .tiptap-content :where(ul[data-type="taskList"] li > label input[type="checkbox"]) {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.3rem;
+    height: 1.3rem;
+    border: 2px solid var(--color-outline-variant, #9aa0a6);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    margin: 0;
+  }
+
+  .tiptap-content :where(ul[data-type="taskList"] li > label input[type="checkbox"]:checked) {
+    background: var(--color-primary, #2563eb);
+    border-color: var(--color-primary, #2563eb);
+  }
+
+  .tiptap-content :where(ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after) {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    width: 5px;
+    height: 9px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .tiptap-content :where(ul[data-type="taskList"] li > div) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tiptap-content :where(blockquote) {
+    background: #eff6ff;
+    border-left: 4px solid var(--color-primary, #2563eb);
+    border-radius: 0 0.5rem 0.5rem 0;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    color: var(--color-on-surface, #1f2937);
+  }
+
+  /* 行内代码：放在 pre 之前，确保 :where(pre code) 能正确覆盖 */
+  .tiptap-content :where(code) {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.3rem;
+    padding: 0.1rem 0.35rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875em;
+    color: #d73a49;
+  }
+
+  .tiptap-content :where(pre) {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.9rem 1rem;
+    margin: 0.75rem 0;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .tiptap-content :where(pre code) {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  /* lowlight / highlight.js 语法高亮（浅色 GitHub 风） */
+  .tiptap-content :where(.hljs-comment),
+  .tiptap-content :where(.hljs-quote) {
+    color: #6a737d;
+    font-style: italic;
+  }
+
+  .tiptap-content :where(.hljs-keyword),
+  .tiptap-content :where(.hljs-selector-tag),
+  .tiptap-content :where(.hljs-literal),
+  .tiptap-content :where(.hljs-type) {
+    color: #d73a49;
+  }
+
+  .tiptap-content :where(.hljs-string),
+  .tiptap-content :where(.hljs-doctag),
+  .tiptap-content :where(.hljs-regexp) {
+    color: #032f62;
+  }
+
+  .tiptap-content :where(.hljs-title),
+  .tiptap-content :where(.hljs-section),
+  .tiptap-content :where(.hljs-name),
+  .tiptap-content :where(.hljs-selector-id),
+  .tiptap-content :where(.hljs-selector-class) {
+    color: #6f42c1;
+  }
+
+  .tiptap-content :where(.hljs-attr),
+  .tiptap-content :where(.hljs-attribute),
+  .tiptap-content :where(.hljs-variable),
+  .tiptap-content :where(.hljs-template-variable),
+  .tiptap-content :where(.hljs-class .hljs-title),
+  .tiptap-content :where(.hljs-deletion) {
+    color: #e36209;
+  }
+
+  .tiptap-content :where(.hljs-number),
+  .tiptap-content :where(.hljs-symbol),
+  .tiptap-content :where(.hljs-bullet),
+  .tiptap-content :where(.hljs-meta) {
+    color: #005cc5;
+  }
+
+  .tiptap-content :where(.hljs-built_in),
+  .tiptap-content :where(.hljs-builtin-name),
+  .tiptap-content :where(.hljs-params) {
+    color: #005cc5;
+  }
+
+  .tiptap-content :where(.hljs-attr) {
+    color: #005cc5;
+  }
+
+  .tiptap-content :where(.hljs-addition) {
+    color: #22863a;
+    background-color: #f0fff4;
+  }
+
+  .tiptap-content :where(.hljs-deletion) {
+    background-color: #ffeef0;
+  }
+
+  .tiptap-content :where(hr) {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 1.25rem 0;
+  }
+
+  .tiptap-content :where(a) {
+    color: var(--color-primary, #2563eb);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .tiptap-content :where(img) {
+    border-radius: 0.5rem;
+    max-width: 100%;
+    margin: 0.5rem 0;
+  }
+
+  /* 表格 */
+  .tiptap-content :where(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.75rem 0;
+    overflow: hidden;
+  }
+
+  .tiptap-content :where(th, td) {
+    border: 1px solid #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+    min-width: 80px;
+  }
+
+  .tiptap-content :where(th) {
+    background: #f8fafc;
+    font-weight: 600;
+  }
+
+  .tiptap-content :where(.selectedCell) {
+    background: #eff6ff;
+  }
+
+  .tiptap-content :where(.tableWrapper) {
+    overflow-x: auto;
+    margin: 0.75rem 0;
+  }
+
+  /* YouTube 嵌入 */
+  .tiptap-content :where(div[data-youtube-video]) {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    margin: 0.75rem 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .tiptap-content :where(div[data-youtube-video] iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 空编辑器占位符 */
+  .tiptap-content :where(.ProseMirror.is-editor-empty:first-child::before) {
+    content: attr(data-placeholder);
+    float: left;
+    color: var(--color-outline-variant, #9aa0a6);
+    pointer-events: none;
+    height: 0;
+  }
+
+  .tiptap-content :where(.ProseMirror) {
+    min-height: inherit;
+  }
+
+  /* 编辑区内允许合成斜体/粗体，覆盖 :root 的 font-synthesis: none */
+  .tiptap-content,
+  .tiptap-content .ProseMirror {
+    font-synthesis: style weight;
+  }
+
+  /* 斜体：中文字体通常无斜体字形，需允许浏览器合成（关键字是 style 不是 italic） */
+  .tiptap-content em,
+  .tiptap-content i {
+    font-style: italic;
+    font-synthesis: style weight;
+  }
+
+  .tiptap-content :where(.ProseMirror-focused) {
+    outline: none;
+  }
+}
