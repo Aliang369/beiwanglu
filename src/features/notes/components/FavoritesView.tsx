@@ -45,12 +45,12 @@ export function FavoritesView({ notes, totalCount, query = '', tagId = null, onC
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid auto-rows-note-card grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {notes.map((note, index) => (
                   <FavoriteNoteCard
                     key={note.id}
                     note={note}
-                    variant={index === 0 ? 'featured' : index === 2 ? 'gradient' : index === 3 ? 'checklist' : 'default'}
+                    variant={index === 0 ? 'featured' : 'default'}
                     onSelect={onSelectNote}
                   />
                 ))}

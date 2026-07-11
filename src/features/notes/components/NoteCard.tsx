@@ -1,11 +1,11 @@
-// 改动：封面设置/更换/移除改用 CoverDialog + ConfirmDialog
-import { CheckSquare, Copy, FolderInput, Image, ImageOff, ImagePlus, Star, Trash2 } from 'lucide-react'
+import { CheckSquare, Copy, FolderInput, ImageOff, ImagePlus, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
 import { handleSelectableActivate, HoverActionMenu, SelectionCheckbox, type HoverMenuItem } from '../../../shared/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoverDialog } from './CoverDialog'
+import { NoteCardShell } from './NoteCardShell'
 
 interface NoteCardProps {
   note: Note
@@ -38,11 +38,12 @@ export function NoteCard({
   onToggleSelection,
   onStartSelection,
 }: NoteCardProps) {
-  const primaryTag = note.tags[0]
+  const primaryTag = note.tags[0]?.name
   const [menuOpen, setMenuOpen] = useState(false)
   const [coverDialogOpen, setCoverDialogOpen] = useState(false)
   const [removeCoverOpen, setRemoveCoverOpen] = useState(false)
   const hasCover = Boolean(note.cover)
+  const updatedLabel = formatUpdatedAt(note.updatedAt)
 
   function handleCardClick() {
     handleSelectableActivate({
@@ -111,99 +112,21 @@ export function NoteCard({
     </>
   )
 
-  if (hasCover) {
-    return (
-      <>
-        <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
-          <article
-            onClick={handleCardClick}
-            aria-disabled={disabled || undefined}
-            aria-selected={selectionMode ? selected : undefined}
-            className={`group flex cursor-pointer flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
-              disabled ? 'cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-card'
-            } ${
-              selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'
-            }`}
-          >
-            <div className="relative h-32 w-full overflow-hidden rounded-t-xl bg-surface-container-low">
-              <img src={note.cover!} alt={`${note.title || '未命名笔记'}封面`} className="h-full w-full object-cover" />
-              <div className="absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <CardPrimaryTag tag={primaryTag} />
-                </div>
-                <div className="size-8 shrink-0" />
-              </div>
-            </div>
-            <div className="flex flex-1 flex-col p-5">
-              <h3 className="mb-2 line-clamp-1 font-headline-sm text-headline-sm text-on-surface">{note.title || '未命名笔记'}</h3>
-              <p className="mb-4 line-clamp-2 flex-1 font-body-md text-body-md text-on-surface-variant">
-                {note.excerpt || note.content || '开始输入内容...'}
-              </p>
-              <div className="mt-auto flex items-center justify-between">
-                <Image className="size-4 text-outline" />
-                <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
-              </div>
-            </div>
-          </article>
-          {selectionMode ? selectionControl : cardMoreControl}
-        </div>
-        {dialogs}
-      </>
-    )
-  }
-
   return (
-    <>
-      <div className={`group relative ${menuOpen ? 'z-50' : 'z-0'} ${featured ? 'col-span-1 row-span-2 md:col-span-2' : ''} ${disabled ? 'pointer-events-none opacity-45' : ''}`}>
-        <article
-          onClick={handleCardClick}
-          aria-disabled={disabled || undefined}
-          aria-selected={selectionMode ? selected : undefined}
-          className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-surface-bright transition-all duration-300 ${
-            disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-card'
-          } ${
-          featured ? 'p-6' : 'p-5'
-        } ${selected ? 'border-2 border-primary shadow-[0_4px_12px_rgba(0,66,117,0.08)] ring-1 ring-primary/20' : 'border border-outline-variant/50'}`}
-        >
-          {featured ? (
-            <div className="absolute top-0 right-0 size-32 rounded-bl-full bg-primary-container/10 transition-transform group-hover:scale-110" />
-          ) : null}
-          <div className={`relative z-10 flex items-start justify-between gap-3 ${featured ? 'mb-4' : 'mb-3'}`}>
-            <div className="min-w-0 flex-1">
-              <CardPrimaryTag tag={primaryTag} />
-            </div>
-            <div className="size-8 shrink-0" />
-          </div>
-          <h3 className={`relative z-10 line-clamp-1 text-on-surface ${featured ? 'mb-3 font-headline-md text-headline-md' : 'mb-2 font-headline-sm text-headline-sm'}`}>
-            {note.title || '未命名笔记'}
-          </h3>
-          <p
-            className={`relative z-10 flex-1 whitespace-pre-line font-body-md text-body-md text-on-surface-variant ${
-              featured ? 'mb-6 line-clamp-3' : 'mb-4 line-clamp-2'
-            }`}
-          >
-            {note.excerpt || note.content || '开始输入内容...'}
-          </p>
-          <div className={`relative z-10 mt-auto flex items-center justify-end gap-3 ${featured ? 'border-t border-outline-variant/20 pt-4' : ''}`}>
-            <span className="font-label-sm text-label-sm text-outline">{formatUpdatedAt(note.updatedAt)}</span>
-          </div>
-        </article>
-        {selectionMode ? selectionControl : cardMoreControl}
-      </div>
-      {dialogs}
-    </>
-  )
-}
-
-function CardPrimaryTag({ tag }: { tag?: Note['tags'][number] }) {
-  if (!tag) {
-    return null
-  }
-
-  return (
-    <span className="inline-block max-w-[120px] truncate rounded-full border border-white/50 bg-surface-container-lowest/85 px-2.5 py-1 font-label-sm text-label-sm text-primary shadow-sm backdrop-blur-md">
-      {tag.name}
-    </span>
+    <NoteCardShell
+      note={note}
+      featured={featured}
+      primaryTag={primaryTag}
+      updatedLabel={updatedLabel}
+      onActivate={handleCardClick}
+      cornerSlot={selectionMode ? selectionControl : cardMoreControl}
+      trailing={dialogs}
+      variant="note"
+      selected={selected}
+      disabled={disabled}
+      selectionMode={selectionMode}
+      elevated={menuOpen}
+    />
   )
 }
 

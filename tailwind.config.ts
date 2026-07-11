@@ -68,6 +68,13 @@ export default {
         'stack-sm': '8px',
         'stack-md': '16px',
         'stack-lg': '32px',
+        'note-card': '224px',
+        'note-card-featured': '472px',
+        'note-card-cover': '96px',
+        'note-card-cover-featured': '192px',
+      },
+      gridAutoRows: {
+        'note-card': '224px',
       },
       fontFamily: {
         sans: ['Noto Sans SC', 'Inter', 'system-ui', 'sans-serif'],

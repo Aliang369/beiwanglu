@@ -1,4 +1,4 @@
-// 改动：移除 visual 硬编码；透传 onSetCover
+// 改动：移除 visual 硬编码；透传 onSetCover；网格固定行高使大卡=两小卡+gap
 import { FileText } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
@@ -161,7 +161,7 @@ export function NoteList({
           <DashedCreate layout="list" label="创建新笔记" iconVariant="plusCircle" onClick={onCreateNote} />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid auto-rows-note-card grid-cols-1 gap-6 pb-24 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {notes.map((note, index) => (
             <NoteCard
               key={note.id}

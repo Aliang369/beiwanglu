@@ -1,4 +1,4 @@
-// 改动：buildNewNote / applyNotePatch 支持 cover；导出 DEFAULT_COVER_URL
+// 改动：excerpt 上限提高到 480，保证宽大卡约 10 行预览够字
 import type { Note, NoteDraft } from '../types/note'
 
 /** 设置封面时 prompt 的默认图片 URL（沿用原硬编码封面链接）。 */
@@ -10,6 +10,12 @@ export const TRASH_RETENTION_DAYS = 30
 /** 剩余天数 <= 该值时高亮提醒。 */
 export const TRASH_URGENT_DAYS = 3
 
+/**
+ * 卡片摘要最大字符数。
+ * 宽大卡约 25–35 字/行 × 10 行 ≈ 250–350，取 480 留余量。
+ */
+export const EXCERPT_MAX_LENGTH = 480
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export type NotePatch = Partial<
@@ -17,7 +23,7 @@ export type NotePatch = Partial<
 >
 
 export function createExcerpt(content: string) {
-  return content.replace(/\s+/g, ' ').trim().slice(0, 96)
+  return content.replace(/\s+/g, ' ').trim().slice(0, EXCERPT_MAX_LENGTH)
 }
 
 export function sortNotesByUpdatedAt(notes: Note[]) {
@@ -83,7 +89,7 @@ export function applyNotePatch(note: Note, patch: NotePatch, now: string): Note 
   return next
 }
 
-/** 兼容旧数据：补齐 deletedAt。 */
+/** 兼容旧数据：补齐 deletedAt；按 content 刷新 excerpt。 */
 export function normalizeNote(raw: Note, now = new Date().toISOString()): Note {
   const isDeleted = Boolean(raw.isDeleted)
   let deletedAt = raw.deletedAt ?? null
@@ -96,8 +102,11 @@ export function normalizeNote(raw: Note, now = new Date().toISOString()): Note {
     deletedAt = null
   }
 
+  const content = raw.content ?? ''
   const note: Note = {
     ...raw,
+    content,
+    excerpt: createExcerpt(content),
     isDeleted,
     deletedAt,
   }

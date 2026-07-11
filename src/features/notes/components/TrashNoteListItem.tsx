@@ -45,6 +45,7 @@ export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: Tras
 
       <TrashNoteActions
         className="self-stretch sm:self-auto"
+        noteTitle={note.title}
         onRestore={onRestore ? () => onRestore(note.id) : undefined}
         onPermanentlyDelete={onPermanentlyDelete}
       />
