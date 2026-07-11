@@ -167,6 +167,7 @@ export function NoteList({
               key={note.id}
               note={note}
               featured={index === 0}
+              query={query}
               onSelect={onSelectNote}
               selected={selectedVisibleNoteIdSet.has(note.id)}
               {...selectionActions}

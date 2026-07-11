@@ -1,16 +1,20 @@
-import { CalendarDays, Eye, FileText, Pin, Plus, Tag, Timer, X } from 'lucide-react'
-import type { Note } from '../../../shared/types/note'
+import { CalendarDays, Eye, FileText, Pin, Timer, X } from 'lucide-react'
+import type { Note, NoteTag } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
-import { extractTextExcludeCode } from '../../../shared/notes/noteDomain'
+import { countVisibleNoteChars } from '../../../shared/notes/noteDomain'
+import { NoteEditorTags } from './NoteEditorTags'
 
 interface EditorInfoPanelProps {
   note: Note
+  availableTags?: NoteTag[]
+  onChangeTags?: (tags: NoteTag[]) => void
   onClose: () => void
 }
 
-export function EditorInfoPanel({ note, onClose }: EditorInfoPanelProps) {
-  const chars = extractTextExcludeCode(note.content).replace(/\s+/g, '').length
+export function EditorInfoPanel({ note, availableTags = [], onChangeTags, onClose }: EditorInfoPanelProps) {
+  const chars = countVisibleNoteChars(note.title, note.content)
   const readingMinutes = Math.max(1, Math.ceil(chars / 500))
+
 
   return (
     <aside className="flex h-full w-[340px] shrink-0 flex-col border-l border-outline-variant/40 bg-surface shadow-[-4px_0_24px_rgba(0,0,0,0.02)]">
@@ -51,17 +55,22 @@ export function EditorInfoPanel({ note, onClose }: EditorInfoPanelProps) {
           </div>
         </section>
         <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">标签</h3>
-            <button type="button" className="rounded-full p-1 text-primary hover:bg-primary-container/20"><Plus className="size-4" /></button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {note.tags.map((tag) => (
-              <span key={tag.id} className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container px-3 py-1.5 text-[13px] text-on-surface">
-                <Tag className="size-3.5 text-primary" /> {tag.name}
-              </span>
-            ))}
-          </div>
+          {onChangeTags ? (
+            <NoteEditorTags
+              tags={note.tags}
+              availableTags={availableTags}
+              onChange={onChangeTags}
+              variant="panel"
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {note.tags.map((tag) => (
+                <span key={tag.id} className="inline-flex items-center rounded-full border border-outline-variant/30 bg-surface-container-low px-3 py-1.5 text-[13px] text-on-surface-variant">
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
         </section>
         <section className="mt-auto border-t border-outline-variant/30 pt-6">
           <h3 className="mb-4 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">偏好设置</h3>

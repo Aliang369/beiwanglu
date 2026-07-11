@@ -14,7 +14,6 @@ export interface FolderItem {
   updatedLabel: string
   icon: FolderIcon
   parentId?: string | null
-  protected?: boolean
 }
 
 interface FolderCardProps {
@@ -67,7 +66,6 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
           >
             <Icon className="size-6" />
           </div>
-          {/* 与笔记卡片一致：预留右上角菜单/选择控件空间 */}
           <div className="size-8 shrink-0" />
         </div>
 
@@ -91,7 +89,6 @@ export function FolderCard({ folder, selectionMode, selected, disabled = false, 
           <FolderMoreControl
             open={menuOpen}
             onToggle={setMenuOpen}
-            protectedFolder={folder.protected}
             onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
             onRename={onRename ? () => onRename(folder.id) : undefined}
             onMove={onMove ? () => onMove(folder.id) : undefined}
@@ -110,7 +107,6 @@ export function FolderMoreControl({
   onRename,
   onMove,
   onDelete,
-  protectedFolder = false,
   variant = 'card',
 }: {
   open: boolean
@@ -119,14 +115,13 @@ export function FolderMoreControl({
   onRename?: () => void
   onMove?: () => void
   onDelete?: () => void
-  protectedFolder?: boolean
   variant?: 'card' | 'inline'
 }) {
   const items: HoverMenuItem[] = [
     { key: 'rename', label: '重命名', icon: Edit3, hidden: !onRename, onSelect: () => onRename?.() },
-    { key: 'move', label: '移动', icon: FolderInput, hidden: protectedFolder || !onMove, onSelect: () => onMove?.() },
+    { key: 'move', label: '移动', icon: FolderInput, hidden: !onMove, onSelect: () => onMove?.() },
     { key: 'multi', label: '多选', icon: CheckSquare, hidden: !onStartSelection, onSelect: () => onStartSelection?.() },
-    { key: 'delete', label: '删除', icon: Trash2, danger: true, hidden: protectedFolder || !onDelete, onSelect: () => onDelete?.() },
+    { key: 'delete', label: '删除', icon: Trash2, danger: true, hidden: !onDelete, onSelect: () => onDelete?.() },
   ]
 
   return (

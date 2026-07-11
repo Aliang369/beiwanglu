@@ -29,7 +29,9 @@ import { InsertPopover } from './InsertPopover'
 
 interface EditorToolbarProps {
   editor: Editor | null
+  className?: string
 }
+
 
 const TEXT_COLORS = [
   { name: '默认', value: '' },
@@ -182,11 +184,11 @@ function ColorPopover({
   )
 }
 
-export function EditorToolbar({ editor }: EditorToolbarProps) {
+export function EditorToolbar({ editor, className = '' }: EditorToolbarProps) {
   useEditorState(editor)
 
   if (!editor) {
-    return <div className="mb-6 h-12 border-b border-outline-variant/30 bg-surface-container-lowest py-3" />
+    return <div className={`h-12 border-b border-outline-variant/30 bg-surface-container-lowest py-3 ${className}`} />
   }
 
   const e = editor
@@ -200,7 +202,7 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
   }
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-1 border-b border-outline-variant/30 bg-surface-container-lowest py-2.5">
+    <div className={`flex flex-wrap items-center gap-1 border-b border-outline-variant/30 bg-surface-container-lowest px-gutter py-2 ${className}`}>
       <ToolButton icon={Undo2} label="撤销" disabled={!editor.can().undo()} onClick={() => e.chain().focus().undo().run()} />
       <ToolButton icon={Redo2} label="重做" disabled={!editor.can().redo()} onClick={() => e.chain().focus().redo().run()} />
 

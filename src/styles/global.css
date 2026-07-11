@@ -363,17 +363,43 @@
   }
 
   /* 空编辑器占位符 */
-  .tiptap-content :where(.ProseMirror.is-editor-empty:first-child::before) {
+  .tiptap-content.ProseMirror p.is-editor-empty:first-child::before,
+  .tiptap-content .ProseMirror p.is-editor-empty:first-child::before,
+  .tiptap-content.ProseMirror.is-editor-empty:first-child::before,
+  .tiptap-content .ProseMirror.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     float: left;
-    color: var(--color-outline-variant, #9aa0a6);
-    pointer-events: none;
     height: 0;
+    color: color-mix(in srgb, var(--color-on-surface-variant, #5a6472) 70%, transparent);
+    pointer-events: none;
   }
 
   .tiptap-content :where(.ProseMirror) {
     min-height: inherit;
   }
+
+  /* 独立单行标题编辑器 */
+  .note-title-editor .tiptap-title {
+    min-height: 1.2em;
+  }
+
+  .note-title-editor .tiptap-title p {
+    margin: 0;
+  }
+
+  .note-title-editor .tiptap-title.ProseMirror p.is-editor-empty:first-child::before,
+  .note-title-editor .tiptap-title p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: color-mix(in srgb, var(--color-on-surface-variant, #5a6472) 70%, transparent);
+    pointer-events: none;
+  }
+
+  .note-title-editor .tiptap-title.ProseMirror-focused {
+    outline: none;
+  }
+
 
   /* 编辑区内允许合成斜体/粗体，覆盖 :root 的 font-synthesis: none */
   .tiptap-content,

@@ -1,4 +1,4 @@
-// 改动：透传 onSetCover / updateNote 以支持封面读写
+// 改动：透传 onSetCover / updateNote 以支持封面读写；挂载标签筛选
 import { useEffect, useState, type ReactNode } from 'react'
 import { Plus } from 'lucide-react'
 import { AuthModal } from '../auth/AuthModal'
@@ -14,11 +14,12 @@ import { NoteList } from './components/NoteList'
 import { SettingsView } from './components/SettingsView'
 import type { SettingsTab } from './components/SettingsView'
 import { Sidebar } from './components/Sidebar'
+import { TagFilterBar } from './components/TagFilterBar'
 import { Toolbar } from './components/Toolbar'
 import { TrashView } from './components/TrashView'
 import type { MessageItem } from './components/messageMockData'
 import { useNotesStore } from './notesStore'
-import { getVisibleNotes } from '../../shared/notes/noteSelectors'
+import { getAllTags, getVisibleNotes } from '../../shared/notes/noteSelectors'
 
 export function NotesHome() {
   const {
@@ -60,6 +61,7 @@ export function NotesHome() {
   }, [isLoaded, loadNotes])
 
   const visibleNotes = getVisibleNotes(notes, filter)
+  const allTags = getAllTags(notes.filter((note) => !note.isDeleted || filter.view === 'trash'))
   const activeTotal = notes.filter((note) => !note.isDeleted).length
   const favoriteTotal = notes.filter((note) => note.isFavorite && !note.isDeleted).length
   const trashTotal = notes.filter((note) => note.isDeleted).length
@@ -143,6 +145,8 @@ export function NotesHome() {
     mainContent = (
       <EditorView
         note={editingNote}
+        folders={folders}
+        availableTags={allTags}
         onBack={() => setEditingNoteId(null)}
         onChange={(patch) => {
           if (editingNote) {
@@ -192,6 +196,7 @@ export function NotesHome() {
           onMessagesClick={handleMessagesClick}
           onMessageOpen={setSelectedMessage}
         />
+        <TagFilterBar tags={allTags} selectedTagId={filter.tagId} onTagChange={setTagFilter} />
         {filter.view === 'favorites' ? (
           <FavoritesView
             notes={visibleNotes}

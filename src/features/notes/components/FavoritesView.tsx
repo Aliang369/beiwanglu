@@ -51,6 +51,7 @@ export function FavoritesView({ notes, totalCount, query = '', tagId = null, onC
                     key={note.id}
                     note={note}
                     variant={index === 0 ? 'featured' : 'default'}
+                    query={query}
                     onSelect={onSelectNote}
                   />
                 ))}

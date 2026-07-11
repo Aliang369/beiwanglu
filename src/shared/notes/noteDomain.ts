@@ -111,9 +111,16 @@ export function extractTextExcludeCode(content: string): string {
   }
 }
 
+/** 统计标题 + 正文全部可见文字（去空白）的字数。 */
+export function countVisibleNoteChars(title: string, content: string) {
+  const body = extractTextFromNoteContent(content)
+  return `${title ?? ''}${body}`.replace(/\s+/g, '').length
+}
+
 export function createExcerpt(content: string) {
   return extractTextFromNoteContent(content).replace(/\s+/g, ' ').trim().slice(0, EXCERPT_MAX_LENGTH)
 }
+
 
 export type NotePatch = Partial<
   Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>
@@ -129,7 +136,7 @@ export function buildNewNote(draft: NoteDraft, id: string, now: string): Note {
     title: draft.title,
     content: draft.content || EMPTY_DOC_JSON,
     excerpt: createExcerpt(draft.content),
-    tags: draft.tags ?? [{ id: 'draft', name: '草稿', tone: 'primary' }],
+    tags: draft.tags ?? [],
     folderId: draft.folderId ?? null,
     isFavorite: false,
     isDeleted: false,

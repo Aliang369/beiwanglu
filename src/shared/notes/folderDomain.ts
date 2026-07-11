@@ -1,17 +1,9 @@
 import type { Folder, FolderDraft, FolderIcon } from '../types/folder'
-import { isProtectedFolderId } from '../types/folder'
-
-export const DEFAULT_FOLDERS: Array<Pick<Folder, 'id' | 'name' | 'icon'>> = [
-  { id: 'inbox', name: '收件箱', icon: 'folder' },
-  { id: 'work', name: '工作项目', icon: 'work' },
-  { id: 'study', name: '学习笔记', icon: 'study' },
-  { id: 'personal', name: '个人生活', icon: 'folder' },
-]
 
 const FOLDER_ICONS: readonly FolderIcon[] = ['work', 'study', 'travel', 'ideas', 'recipes', 'finance', 'folder']
 
 function normalizeFolderIcon(icon: unknown): FolderIcon {
-  return FOLDER_ICONS.includes(icon as FolderIcon) ? icon as FolderIcon : 'folder'
+  return FOLDER_ICONS.includes(icon as FolderIcon) ? (icon as FolderIcon) : 'folder'
 }
 
 export function buildFolder(draft: FolderDraft, id: string, now: string): Folder {
@@ -36,28 +28,6 @@ export function applyFolderPatch(
     name: patch.name !== undefined ? patch.name.trim() : folder.name,
     updatedAt: now,
   }
-}
-
-export function seedDefaultFolders(now: string): Folder[] {
-  return DEFAULT_FOLDERS.map((item) => ({
-    ...item,
-    parentId: null,
-    createdAt: now,
-    updatedAt: now,
-  }))
-}
-
-/** 合并 seed 与已有文件夹：保留用户数据，补齐缺失的默认根文件夹。 */
-export function ensureDefaultFolders(folders: Folder[], now = new Date().toISOString()) {
-  const byId = new Map(folders.map((folder) => [folder.id, folder]))
-
-  for (const seed of seedDefaultFolders(now)) {
-    if (!byId.has(seed.id)) {
-      byId.set(seed.id, seed)
-    }
-  }
-
-  return Array.from(byId.values())
 }
 
 export function normalizeFolder(raw: Folder): Folder {
@@ -180,10 +150,6 @@ export function canMoveFolder(
   nextParentId: string | null,
   movingIds: Set<string> = new Set([folderId]),
 ) {
-  if (isProtectedFolderId(folderId) && nextParentId !== null) {
-    return false
-  }
-
   if (movingIds.has(nextParentId as string)) {
     return false
   }
@@ -207,15 +173,12 @@ export function canMoveFolder(
     return false
   }
 
-  // 若自身有子文件夹，则只能移到根（否则子级会变成第三层语义上仍挂在它下面，但目标若是另一根文件夹，结构仍是 根->A->children 合法）
-  // 一层模型允许：根下的 A（含子）移动到另一根 B 下？ 那会变成 B->A->child = 两层子，违反「仅一层」。
-  // 因此：带有子文件夹的文件夹，只能 parentId = null（保持为根）。
+  // 带有子文件夹的文件夹，只能 parentId = null（保持为根），避免第三层。
   const hasChildren = folders.some((item) => item.parentId === folderId)
   if (hasChildren && nextParentId !== null) {
     return false
   }
 
-  // 若 folder 已是子级，移到某个根下 OK；移到 null 变根 OK。
   return true
 }
 
@@ -224,12 +187,10 @@ export function getValidMoveTargets(folders: Folder[], movingIds: string[]) {
   const blocked = collectSubtreeIdsForMany(folders, movingIds)
   const roots = getRootFolders(folders).filter((folder) => !blocked.has(folder.id))
 
-  // 若任一被移动项有子文件夹，则只能选「顶层」
   const anyHasChildren = movingIds.some((id) => folders.some((folder) => folder.parentId === id))
 
   return {
-    allowRoot: movingIds.every((id) => !isProtectedFolderId(id) || folders.find((f) => f.id === id)?.parentId !== null),
-    // protected at root stays; allowRoot still true for non-protected
+    allowRoot: true,
     rootOnly: anyHasChildren,
     rootFolders: anyHasChildren ? [] : roots.filter((folder) => !movingSet.has(folder.id)),
   }

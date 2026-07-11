@@ -1,32 +1,62 @@
-import { CalendarDays, Edit3, FolderOpen } from 'lucide-react'
+import { CalendarDays, Folder } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
-import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
-import { extractTextExcludeCode } from '../../../shared/notes/noteDomain'
-import { useNotesStore } from '../notesStore'
+import { countVisibleNoteChars } from '../../../shared/notes/noteDomain'
 
 interface EditorMetaBarProps {
   note: Note
+  folderName?: string | null
   className?: string
+  /** 与标签行同排时的紧凑样式 */
+  compact?: boolean
+  saveState?: 'saved' | 'editing'
 }
 
-export function EditorMetaBar({ note, className }: EditorMetaBarProps) {
-  const folders = useNotesStore((state) => state.folders)
-  const folderName = note.folderId
-    ? folders.find((folder) => folder.id === note.folderId)?.name ?? '未知文件夹'
-    : '未归档'
-  const wordCount = extractTextExcludeCode(note.content).replace(/\s+/g, '').length
+/** 创建日期：同年 M月D日；跨年 YYYY年M月D日。不显示时刻。 */
+function formatCreatedDate(iso: string) {
+  const date = new Date(iso)
+
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+
+  const now = new Date()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+
+  if (date.getFullYear() !== now.getFullYear()) {
+    return `${date.getFullYear()}年${month}月${day}日`
+  }
+
+  return `${month}月${day}日`
+}
+
+export function EditorMetaBar({ note, folderName, className = '', compact = false, saveState }: EditorMetaBarProps) {
+  const chars = countVisibleNoteChars(note.title, note.content)
+  const displayFolderName = folderName?.trim() || '未分类'
+  const itemClass = compact
+    ? 'inline-flex items-center gap-1 whitespace-nowrap font-label-sm text-label-sm text-on-surface-variant/80'
+    : 'flex items-center gap-1.5'
+  const iconClass = compact ? 'size-3.5 shrink-0' : 'size-4'
+  const wrapClass = compact
+    ? `inline-flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 ${className}`
+    : `flex flex-wrap items-center gap-4 text-[13px] ${className}`
 
   return (
-    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 font-label-md text-label-md text-on-surface-variant ${className ?? ''}`}>
-      <span className="flex items-center gap-1.5 hover:text-primary">
-        <FolderOpen className="size-4" /> {folderName}
+    <div className={wrapClass}>
+      <span className={itemClass}>
+        <Folder className={iconClass} />
+        <span className="max-w-[8rem] truncate">{displayFolderName}</span>
       </span>
-      <span className="flex items-center gap-1.5">
-        <CalendarDays className="size-4" /> {formatUpdatedAt(note.createdAt)}
+      <span className={itemClass}>
+        <CalendarDays className={iconClass} />
+        {formatCreatedDate(note.createdAt)}
       </span>
-      <span className="flex items-center gap-1.5">
-        <Edit3 className="size-4" /> 约 {wordCount || 0} 字
-      </span>
+      <span className={itemClass}>共计{chars}字</span>
+      {saveState ? (
+        <span className={`${itemClass} ${saveState === 'editing' ? 'text-primary' : ''}`}>
+          {saveState === 'editing' ? '保存中' : '已保存'}
+        </span>
+      ) : null}
     </div>
   )
 }

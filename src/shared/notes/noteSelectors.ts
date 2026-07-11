@@ -1,24 +1,114 @@
 import type { Note, NotesFilter, NotesView } from '../types/note'
+import { extractTextFromNoteContent } from './noteDomain'
 
-export function getVisibleNotes(notes: Note[], filter: NotesFilter) {
-  const query = filter.query.trim().toLowerCase()
-
-  return notes.filter((note) => {
-    const matchesView = matchesNotesView(note, filter.view)
-    const matchesQuery =
-      !query ||
-      note.title.toLowerCase().includes(query) ||
-      note.content.toLowerCase().includes(query) ||
-      note.excerpt.toLowerCase().includes(query) ||
-      note.tags.some((tag) => tag.name.toLowerCase().includes(query))
-
-    const matchesTag = !filter.tagId || note.tags.some((tag) => tag.id === filter.tagId)
-
-    return matchesView && matchesQuery && matchesTag
-  })
+export function parseSearchTerms(query: string): string[] {
+  return query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
 }
 
+function scoreNoteMatchFields(
+  title: string,
+  plainText: string,
+  tagNames: string[],
+  terms: string[],
+): number {
+  if (terms.length === 0) {
+    return 0
+  }
+
+  let score = 0
+
+  for (const term of terms) {
+    let termScore = 0
+
+    if (title.includes(term)) {
+      termScore = Math.max(termScore, title === term ? 120 : title.startsWith(term) ? 100 : 80)
+    }
+
+    if (tagNames.some((name) => name.includes(term))) {
+      termScore = Math.max(termScore, 50)
+    }
+
+    if (plainText.includes(term)) {
+      termScore = Math.max(termScore, 20)
+    }
+
+    if (termScore === 0) {
+      return 0
+    }
+
+    score += termScore
+  }
+
+  return score
+}
+
+export function scoreNoteMatch(note: Note, terms: string[]): number {
+  if (terms.length === 0) {
+    return 0
+  }
+
+  return scoreNoteMatchFields(
+    note.title.toLowerCase(),
+    extractTextFromNoteContent(note.content).toLowerCase(),
+    note.tags.map((tag) => tag.name.toLowerCase()),
+    terms,
+  )
+}
+
+export function noteMatchesSearchTerms(note: Note, terms: string[]): boolean {
+  return scoreNoteMatch(note, terms) > 0 || terms.length === 0
+}
+
+export function getVisibleNotes(notes: Note[], filter: NotesFilter) {
+  const terms = parseSearchTerms(filter.query)
+
+  if (terms.length === 0) {
+    return notes.filter((note) => {
+      const matchesView = matchesNotesView(note, filter.view)
+      const matchesTag = !filter.tagId || note.tags.some((tag) => tag.id === filter.tagId)
+      return matchesView && matchesTag
+    })
+  }
+
+  const scored: Array<{ note: Note; score: number }> = []
+
+  for (const note of notes) {
+    if (!matchesNotesView(note, filter.view)) {
+      continue
+    }
+
+    if (filter.tagId && !note.tags.some((tag) => tag.id === filter.tagId)) {
+      continue
+    }
+
+    const title = note.title.toLowerCase()
+    const plainText = extractTextFromNoteContent(note.content).toLowerCase()
+    const tagNames = note.tags.map((tag) => tag.name.toLowerCase())
+    const score = scoreNoteMatchFields(title, plainText, tagNames, terms)
+
+    if (score > 0) {
+      scored.push({ note, score })
+    }
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score
+    }
+
+    return new Date(b.note.updatedAt).getTime() - new Date(a.note.updatedAt).getTime()
+  })
+
+  return scored.map(({ note }) => note)
+}
+
+/** 从各笔记 tags 聚合去重（note-scoped 标签的列表侧视图，非全局标签表）。 */
 export function getAllTags(notes: Note[]) {
+
   const tags = new Map<string, Note['tags'][number]>()
 
   for (const note of notes) {

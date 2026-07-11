@@ -6,10 +6,11 @@ import { NoteCardShell } from './NoteCardShell'
 interface FavoriteNoteCardProps {
   note: Note
   variant?: 'featured' | 'default'
+  query?: string
   onSelect?: (noteId: string) => void
 }
 
-export function FavoriteNoteCard({ note, variant = 'default', onSelect }: FavoriteNoteCardProps) {
+export function FavoriteNoteCard({ note, variant = 'default', query, onSelect }: FavoriteNoteCardProps) {
   const primaryTag = getNoteTagNames(note, ['收藏'])[0]
   const updatedAt = formatUpdatedAt(note.updatedAt)
   const featured = variant === 'featured'
@@ -24,6 +25,7 @@ export function FavoriteNoteCard({ note, variant = 'default', onSelect }: Favori
     <NoteCardShell
       note={note}
       featured={featured}
+      query={query}
       primaryTag={primaryTag}
       updatedLabel={updatedAt}
       imgAltPrefix="收藏笔记"
