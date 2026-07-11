@@ -82,6 +82,7 @@ export function TrashView({ notes, totalCount, query = '', tagId = null, onClear
                   <TrashNoteListItem
                     key={note.id}
                     note={note}
+                    query={query}
                     onRestore={onRestoreNote}
                     onPermanentlyDelete={() => setConfirmState({ type: 'delete', note })}
                   />

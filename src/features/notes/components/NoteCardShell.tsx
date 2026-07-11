@@ -2,6 +2,7 @@ import { Image } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { extractTextFromNoteContent } from '../../../shared/notes/noteDomain'
+import { highlightSearchMatch } from '../../../shared/ui'
 
 const cardFooterClass =
   'mt-auto flex shrink-0 items-center border-t border-outline-variant/20 pt-4'
@@ -34,6 +35,7 @@ function CardPrimaryTag({ children }: { children?: string }) {
 export interface NoteCardShellProps {
   note: Note
   featured?: boolean
+  query?: string
   primaryTag?: string
   updatedLabel: string
   imgAltPrefix?: string
@@ -54,6 +56,7 @@ export interface NoteCardShellProps {
 export function NoteCardShell({
   note,
   featured = false,
+  query,
   primaryTag,
   updatedLabel,
   imgAltPrefix = '未命名笔记',
@@ -68,6 +71,9 @@ export function NoteCardShell({
 }: NoteCardShellProps) {
   const hasCover = Boolean(note.cover)
   const previewText = getCardPreviewText(note)
+  const titleText = note.title || imgAltPrefix || '未命名笔记'
+  const titleNode = highlightSearchMatch(titleText, query)
+  const previewNode = highlightSearchMatch(previewText, query)
   const isFavorite = variant === 'favorite'
 
   // 收藏夹标题有 hover 变色，所有笔记没有
@@ -102,7 +108,7 @@ export function NoteCardShell({
             <div className="relative h-note-card-cover-featured w-full shrink-0 overflow-hidden bg-surface-container-low">
               <img
                 src={note.cover!}
-                alt={`${note.title || imgAltPrefix}封面`}
+                alt={`${titleText}封面`}
                 className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
             </div>
@@ -113,10 +119,10 @@ export function NoteCardShell({
             ) : null}
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
               <h3 className={`mb-2 shrink-0 line-clamp-1 font-headline-md text-headline-md text-on-surface ${titleHoverClass}`}>
-                {note.title || '未命名笔记'}
+                {titleNode}
               </h3>
               <p className={`mb-4 shrink-0 overflow-hidden font-body-md text-body-md leading-[1.6] text-on-surface-variant ${excerptClamp.featuredCover}`}>
-                {previewText}
+                {previewNode}
               </p>
               <div className="min-h-0 flex-1" aria-hidden />
               <div className={`${cardFooterClass} justify-between`}>
@@ -139,7 +145,7 @@ export function NoteCardShell({
         <div className={shellClass}>
           <article onClick={onActivate} aria-disabled={ariaDisabled} aria-selected={ariaSelected} className={articleBase}>
             <div className="relative h-note-card-cover w-full shrink-0 overflow-hidden rounded-t-xl bg-surface-container-low">
-              <img src={note.cover!} alt={`${note.title || imgAltPrefix}封面`} className="h-full w-full object-cover" />
+              <img src={note.cover!} alt={`${titleText}封面`} className="h-full w-full object-cover" />
             </div>
             {primaryTag ? (
               <div className="absolute left-5 top-5 z-10">
@@ -149,7 +155,7 @@ export function NoteCardShell({
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-5 pt-4">
               <div className="flex min-h-0 flex-1 items-center">
                 <h3 className={`line-clamp-2 w-full font-headline-sm text-headline-sm text-on-surface ${titleHoverClass}`}>
-                  {note.title || '未命名笔记'}
+                  {titleNode}
                 </h3>
               </div>
               <div className={`${cardFooterClass} justify-between`}>
@@ -185,19 +191,19 @@ export function NoteCardShell({
             <div className="size-8 shrink-0" />
           </div>
           <h3 className={`relative z-10 shrink-0 line-clamp-1 text-on-surface ${titleHoverClass} ${featured ? 'mb-3 font-headline-md text-headline-md' : 'mb-2 font-headline-sm text-headline-sm'}`}>
-            {note.title || '未命名笔记'}
+            {titleNode}
           </h3>
           {featured ? (
             <>
               <p className={`relative z-10 mb-4 shrink-0 overflow-hidden font-body-md text-body-md leading-[1.6] text-on-surface-variant ${excerptClamp.featuredPlain}`}>
-                {previewText}
+                {previewNode}
               </p>
               <div className="relative z-10 min-h-0 flex-1" aria-hidden />
             </>
           ) : (
             <>
               <p className={`relative z-10 mb-3 shrink-0 overflow-hidden font-body-md text-body-md leading-[1.6] text-on-surface-variant ${excerptClamp.small}`}>
-                {previewText}
+                {previewNode}
               </p>
               <div className="relative z-10 min-h-0 flex-1" aria-hidden />
             </>

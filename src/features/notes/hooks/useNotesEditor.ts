@@ -5,6 +5,7 @@ import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import { Highlight } from '@tiptap/extension-highlight'
 import { Image } from '@tiptap/extension-image'
 import { Mathematics } from '@tiptap/extension-mathematics'
+import { Placeholder } from '@tiptap/extension-placeholder'
 import { TableKit } from '@tiptap/extension-table'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { TaskList } from '@tiptap/extension-task-list'
@@ -71,6 +72,10 @@ export function useNotesEditor(note: Note | undefined, onChange: (json: string) 
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Mathematics.configure({ katexOptions: { throwOnError: false } }),
       Youtube,
+      Placeholder.configure({
+        placeholder: '开始写下你的想法，灵感会慢慢清晰…',
+        emptyEditorClass: 'is-editor-empty',
+      }),
     ],
     content: parseContent(note?.content ?? ''),
     editorProps: {
@@ -98,8 +103,9 @@ export function useNotesEditor(note: Note | undefined, onChange: (json: string) 
 
     lastNoteIdRef.current = note.id
     editor.commands.setContent(parseContent(note.content), { emitUpdate: false })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切换笔记 id 时重置内容
   }, [note?.id, editor])
+
 
   useEffect(() => {
     return () => {

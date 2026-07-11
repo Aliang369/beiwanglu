@@ -15,12 +15,3 @@ export interface FolderDraft {
   icon?: FolderIcon
   parentId?: string | null
 }
-
-/** 受保护：不可删除、不可移出根级。 */
-export const PROTECTED_FOLDER_IDS = ['inbox'] as const
-
-export type ProtectedFolderId = (typeof PROTECTED_FOLDER_IDS)[number]
-
-export function isProtectedFolderId(folderId: string) {
-  return (PROTECTED_FOLDER_IDS as readonly string[]).includes(folderId)
-}

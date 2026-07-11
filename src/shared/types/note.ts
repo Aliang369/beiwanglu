@@ -3,9 +3,14 @@ export type NoteTone = 'neutral' | 'danger' | 'primary'
 
 export type NotesView = 'all' | 'favorites' | 'trash' | 'folders'
 
+/**
+ * 标签为 note-scoped：嵌在笔记 tags[] 内，不是全局标签实体。
+ * 筛选条候选项通过对各笔记 tags 聚合得到。
+ */
 export interface NoteTag {
   id: string
   name: string
+  /** 视觉 tone 可选；当前 UI 统一默认色，不再按 tone 分色。 */
   tone?: NoteTone
 }
 
@@ -19,6 +24,7 @@ export interface Note {
    */
   content: string
   excerpt: string
+  /** note-scoped 标签列表（非全局标签表）。 */
   tags: NoteTag[]
   folderId: string | null
   isFavorite: boolean

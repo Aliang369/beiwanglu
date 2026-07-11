@@ -10,6 +10,7 @@ import { NoteCardShell } from './NoteCardShell'
 interface NoteCardProps {
   note: Note
   featured?: boolean
+  query?: string
   onSelect?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
@@ -26,6 +27,7 @@ interface NoteCardProps {
 export function NoteCard({
   note,
   featured = false,
+  query,
   onSelect,
   onToggleFavorite,
   onMoveToTrash,
@@ -116,6 +118,7 @@ export function NoteCard({
     <NoteCardShell
       note={note}
       featured={featured}
+      query={query}
       primaryTag={primaryTag}
       updatedLabel={updatedLabel}
       onActivate={handleCardClick}

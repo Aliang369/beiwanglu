@@ -10,10 +10,10 @@ import {
 } from '../notes/folderDomain'
 import { firstVisibleNoteId } from '../notes/noteSelectors'
 import type { Folder, FolderDraft } from '../types/folder'
-import { isProtectedFolderId } from '../types/folder'
 import type { Note, NotesFilter, NotesView } from '../types/note'
 
-type NoteEditablePatch = Partial<Pick<Note, 'title' | 'content' | 'cover'>>
+type NoteEditablePatch = Partial<Pick<Note, 'title' | 'content' | 'cover' | 'tags'>>
+
 
 export interface NotesState {
   notes: Note[]
@@ -78,7 +78,7 @@ export function createNotesStore(repository: NotesRepository) {
     },
 
     async createNote() {
-      const note = await repository.create({ title: '未命名笔记', content: '', folderId: 'inbox' })
+      const note = await repository.create({ title: '', content: '', tags: [], folderId: null })
       set((state) => ({
         notes: [note, ...state.notes],
         selectedNoteId: note.id,
@@ -249,7 +249,7 @@ export function createNotesStore(repository: NotesRepository) {
     },
 
     async deleteFolders(folderIds) {
-      const uniqueIds = Array.from(new Set(folderIds)).filter((id) => !isProtectedFolderId(id))
+      const uniqueIds = Array.from(new Set(folderIds))
 
       if (uniqueIds.length === 0) {
         return
@@ -257,12 +257,6 @@ export function createNotesStore(repository: NotesRepository) {
 
       const { folders, notes } = get()
       const subtreeIds = collectSubtreeIdsForMany(folders, uniqueIds)
-      // 受保护文件夹不可进入删除集合
-      for (const id of Array.from(subtreeIds)) {
-        if (isProtectedFolderId(id)) {
-          subtreeIds.delete(id)
-        }
-      }
 
       if (subtreeIds.size === 0) {
         return

@@ -1,20 +1,25 @@
 import { Trash2 } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
-import { formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
+import { extractTextFromNoteContent, formatTrashPurgeLabel, getTrashDaysRemaining, isTrashPurgeUrgent } from '../../../shared/notes/noteDomain'
 import { getNoteTagNames } from '../../../shared/notes/noteSelectors'
+import { highlightSearchMatch } from '../../../shared/ui'
 import { TrashNoteActions } from './TrashNoteActions'
 
 interface TrashNoteListItemProps {
   note: Note
+  query?: string
   onRestore?: (noteId: string) => void
   onPermanentlyDelete?: () => void
 }
 
-export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: TrashNoteListItemProps) {
+export function TrashNoteListItem({ note, query, onRestore, onPermanentlyDelete }: TrashNoteListItemProps) {
   const tags = getNoteTagNames(note, ['已删除'])
   const daysRemaining = getTrashDaysRemaining(note)
   const purgeLabel = formatTrashPurgeLabel(daysRemaining)
   const urgent = isTrashPurgeUrgent(daysRemaining)
+  const titleText = note.title || '未命名笔记'
+  const previewText =
+    note.excerpt || extractTextFromNoteContent(note.content || '') || '已删除的笔记内容预览。'
 
   return (
     <article className="group flex flex-col gap-4 rounded-xl border border-dashed border-outline-variant/60 bg-white p-5 opacity-80 transition-all duration-300 hover:border-solid hover:border-outline-variant hover:opacity-100 hover:shadow-lg sm:flex-row sm:items-center sm:gap-6">
@@ -24,7 +29,9 @@ export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: Tras
 
       <div className="min-w-0 flex-1 self-stretch sm:self-auto">
         <div className="mb-1 flex min-w-0 items-center gap-3">
-          <h3 className="truncate font-headline-sm text-headline-sm text-on-surface-variant transition-colors group-hover:text-on-surface">{note.title || '未命名笔记'}</h3>
+          <h3 className="truncate font-headline-sm text-headline-sm text-on-surface-variant transition-colors group-hover:text-on-surface">
+            {highlightSearchMatch(titleText, query)}
+          </h3>
           <span
             className={`shrink-0 rounded px-2 py-0.5 font-label-sm text-label-sm ${
               urgent ? 'bg-error-container/40 text-error' : 'bg-surface-variant/50 text-on-surface-variant'
@@ -39,7 +46,7 @@ export function TrashNoteListItem({ note, onRestore, onPermanentlyDelete }: Tras
           ))}
         </div>
         <p className="max-w-2xl truncate font-body-md text-body-md text-outline transition-colors group-hover:text-on-surface-variant">
-          {note.excerpt || note.content || '已删除的笔记内容预览。'}
+          {highlightSearchMatch(previewText, query)}
         </p>
       </div>
 

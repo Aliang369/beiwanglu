@@ -79,7 +79,6 @@ export function FolderListItem({
           <FolderMoreControl
             open={menuOpen}
             onToggle={setMenuOpen}
-            protectedFolder={folder.protected}
             onStartSelection={onStartSelection ? () => onStartSelection(folder.id) : undefined}
             onRename={onRename ? () => onRename(folder.id) : undefined}
             onMove={onMove ? () => onMove(folder.id) : undefined}

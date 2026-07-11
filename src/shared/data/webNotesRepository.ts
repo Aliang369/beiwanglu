@@ -1,4 +1,4 @@
-// 改动：update 的 patch 类型增加 cover（实际合并逻辑在 applyNotePatch）
+// 改动：update 的 patch 类型增加 cover；无默认文件夹；存储显式 v4 一次性迁移
 import { mockNotes } from './mockNotes'
 import type { NotesRepository } from './notesRepository'
 import {
@@ -7,9 +7,7 @@ import {
   applyFolderPatch,
   assertValidParentId,
   buildFolder,
-  ensureDefaultFolders,
   normalizeFolders,
-  seedDefaultFolders,
 } from '../notes/folderDomain'
 import { applyNotePatch, buildNewNote, normalizeNotes, purgeExpiredTrashNotes, sortNotesByUpdatedAt } from '../notes/noteDomain'
 import type { Folder, FolderDraft } from '../types/folder'
@@ -17,12 +15,33 @@ import type { Note, NoteDraft } from '../types/note'
 
 const STORAGE_KEY = 'beiwanglu.notes.v1'
 const STORAGE_KEY_V2 = 'beiwanglu.notes.v2'
+const STORAGE_KEY_V3 = 'beiwanglu.notes.v3'
+const STORAGE_KEY_V4 = 'beiwanglu.notes.v4'
 
-interface NotesStorageV2 {
-  version: 2
+/** 历史默认/种子文件夹 id（仅迁移时剔除，非运行时保护逻辑）。 */
+const LEGACY_SEED_FOLDER_IDS = new Set([
+  'inbox',
+  'work',
+  'study',
+  'personal',
+  'travel',
+  'ideas',
+  'recipes',
+  'finance',
+])
+
+interface NotesStorageV4 {
+  version: 4
   notes: Note[]
   folders: Folder[]
   updatedAt: string
+}
+
+interface LegacyNotesStorage {
+  version?: number
+  notes?: Note[]
+  folders?: Folder[]
+  updatedAt?: string
 }
 
 export class WebNotesRepository implements NotesRepository {
@@ -138,67 +157,108 @@ export class WebNotesRepository implements NotesRepository {
     return window.crypto.randomUUID()
   }
 
-  private read(): NotesStorageV2 {
+  private read(): NotesStorageV4 {
     const now = new Date().toISOString()
-    const rawV2 = this.storage.getItem(STORAGE_KEY_V2)
+    const rawV4 = this.storage.getItem(STORAGE_KEY_V4)
 
-    if (rawV2) {
+    if (rawV4) {
       try {
-        const parsed = JSON.parse(rawV2) as NotesStorageV2
+        const parsed = JSON.parse(rawV4) as NotesStorageV4
         const notes = normalizeNotes(this.withoutTrashTestNote(parsed.notes ?? []))
-        const folders = ensureDefaultFolders(normalizeFolders(parsed.folders ?? []), now)
-        return { version: 2, notes, folders, updatedAt: parsed.updatedAt ?? now }
+        const folders = normalizeFolders(parsed.folders ?? [])
+        // v4 已完成种子清理；此处只做引用完整性修正，不反复剔除用户数据
+        const cleaned = this.sanitizeNoteFolderRefs(notes, folders)
+        return {
+          version: 4,
+          notes: cleaned,
+          folders,
+          updatedAt: parsed.updatedAt ?? now,
+        }
       } catch {
-        // fall through to rebuild
+        // fall through to migrate older keys
       }
     }
 
-    const rawV1 = this.storage.getItem(STORAGE_KEY)
+    return this.migrateToV4(now)
+  }
 
-    if (rawV1) {
-      try {
-        const notes = normalizeNotes(this.withoutTrashTestNote(JSON.parse(rawV1) as Note[]))
-        const folders = ensureDefaultFolders(this.foldersFromNoteIds(notes, now), now)
-        const data: NotesStorageV2 = { version: 2, notes, folders, updatedAt: now }
-        this.write(data)
-        return data
-      } catch {
-        // fall through
-      }
-    }
-
-    const data: NotesStorageV2 = {
-      version: 2,
-      notes: normalizeNotes(mockNotes),
-      folders: seedDefaultFolders(now),
+  /**
+   * 一次性迁移到 v4：
+   * - 去掉历史默认/种子文件夹 id
+   * - 失效的 folderId 置 null
+   * - 写入 v4 后不再在每次 read 时做种子过滤
+   */
+  private migrateToV4(now: string): NotesStorageV4 {
+    const legacy = this.readLegacyPayload()
+    const notes = normalizeNotes(this.withoutTrashTestNote(legacy.notes)).map((note) => ({
+      ...note,
+      // 旧版本可能挂在默认收件箱等种子上；迁移后无文件夹
+      folderId: note.folderId && !LEGACY_SEED_FOLDER_IDS.has(note.folderId) ? note.folderId : null,
+    }))
+    const folders = normalizeFolders(legacy.folders).filter((folder) => !LEGACY_SEED_FOLDER_IDS.has(folder.id))
+    const cleanedNotes = this.sanitizeNoteFolderRefs(notes, folders)
+    const data: NotesStorageV4 = {
+      version: 4,
+      notes: cleanedNotes,
+      folders,
       updatedAt: now,
     }
     this.write(data)
     return data
   }
 
-  private foldersFromNoteIds(notes: Note[], now: string) {
-    const ids = new Set(notes.map((note) => note.folderId).filter(Boolean) as string[])
-    const seeded = seedDefaultFolders(now)
-    const byId = new Map(seeded.map((folder) => [folder.id, folder]))
-
-    for (const id of ids) {
-      if (!byId.has(id)) {
-        byId.set(id, {
-          id,
-          name: id,
-          icon: 'folder',
-          parentId: null,
-          createdAt: now,
-          updatedAt: now,
-        })
+  private readLegacyPayload(): { notes: Note[]; folders: Folder[] } {
+    for (const key of [STORAGE_KEY_V3, STORAGE_KEY_V2]) {
+      const raw = this.storage.getItem(key)
+      if (!raw) {
+        continue
+      }
+      try {
+        const parsed = JSON.parse(raw) as LegacyNotesStorage | Note[]
+        if (Array.isArray(parsed)) {
+          return { notes: parsed, folders: [] }
+        }
+        return {
+          notes: parsed.notes ?? [],
+          folders: parsed.folders ?? [],
+        }
+      } catch {
+        // try next key
       }
     }
 
-    return Array.from(byId.values())
+    const rawV1 = this.storage.getItem(STORAGE_KEY)
+    if (rawV1) {
+      try {
+        const parsed = JSON.parse(rawV1) as LegacyNotesStorage | Note[]
+        if (Array.isArray(parsed)) {
+          return { notes: parsed, folders: [] }
+        }
+        if (Array.isArray(parsed.notes)) {
+          return { notes: parsed.notes, folders: parsed.folders ?? [] }
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    return {
+      notes: mockNotes.map((note) => ({ ...note, folderId: null })),
+      folders: [],
+    }
   }
 
-  private purgeAndPersist(data: NotesStorageV2) {
+  private sanitizeNoteFolderRefs(notes: Note[], folders: Folder[]) {
+    const folderIds = new Set(folders.map((folder) => folder.id))
+    return notes.map((note) => {
+      if (note.folderId && !folderIds.has(note.folderId)) {
+        return { ...note, folderId: null }
+      }
+      return note
+    })
+  }
+
+  private purgeAndPersist(data: NotesStorageV4) {
     const nextNotes = purgeExpiredTrashNotes(data.notes)
 
     if (nextNotes.length !== data.notes.length) {
@@ -214,13 +274,14 @@ export class WebNotesRepository implements NotesRepository {
     return notes.filter((note) => note.id !== 'trash-test-note')
   }
 
-  private write(data: NotesStorageV2) {
-    this.storage.setItem(STORAGE_KEY_V2, JSON.stringify(data))
+  private write(data: NotesStorageV4) {
+    const payload: NotesStorageV4 = { ...data, version: 4 }
+    this.storage.setItem(STORAGE_KEY_V4, JSON.stringify(payload))
     try {
-      // 同步笔记数组到旧 key，避免其它读 v1 的代码完全失联（过渡期）
-      this.storage.setItem(STORAGE_KEY, JSON.stringify(data.notes))
+      // 兼容旧读取方：notes 数组镜像
+      this.storage.setItem(STORAGE_KEY, JSON.stringify(payload.notes))
     } catch {
-      // v2 是主数据；兼容旧 key 写入失败不应让调用方误判主写入失败。
+      // v4 是主数据；兼容旧 key 写入失败不应让调用方误判主写入失败。
     }
   }
 }

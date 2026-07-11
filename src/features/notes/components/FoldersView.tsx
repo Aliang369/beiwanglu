@@ -2,7 +2,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { ArrowLeft, FileText } from 'lucide-react'
 import type { Folder } from '../../../shared/types/folder'
-import { isProtectedFolderId } from '../../../shared/types/folder'
 import type { Note } from '../../../shared/types/note'
 import { canMoveFolder, canPlaceFoldersInParent, getValidMoveTargets } from '../../../shared/notes/folderDomain'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
@@ -112,8 +111,7 @@ export function FoldersView({
         noteCount: folderNotes.length,
         childCount,
         updatedLabel: latestNote ? formatUpdatedAt(latestNote.updatedAt) : formatUpdatedAt(folder.updatedAt),
-        protected: isProtectedFolderId(folder.id),
-        visibleNoteCount: visibleNotes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
+                visibleNoteCount: visibleNotes.filter((note) => note.folderId === folder.id && !note.isDeleted).length,
       }
     })
   }, [folders, notes, visibleNotes])
@@ -141,7 +139,7 @@ export function FoldersView({
     : []
 
   function folderMatchesFilter(folder: FolderItem) {
-    return (folder.visibleNoteCount ?? 0) > 0 || (hasSearch && folder.name.includes(trimmedQuery))
+    return (folder.visibleNoteCount ?? 0) > 0 || (hasSearch && folder.name.toLowerCase().includes(trimmedQuery.toLowerCase()))
   }
 
   function hasMatchingChild(folderId: string) {
@@ -241,11 +239,10 @@ export function FoldersView({
   }
 
   function openDelete(folderIds: string[]) {
-    const deletable = folderIds.filter((id) => !isProtectedFolderId(id))
-    if (deletable.length === 0) {
+    if (folderIds.length === 0) {
       return
     }
-    setDeletingFolderIds(deletable)
+    setDeletingFolderIds(folderIds)
   }
 
   async function handleMove(parentId: string | null) {
@@ -312,8 +309,8 @@ export function FoldersView({
 
   const selectableItems = activeFolder ? visibleChildFolderItems : visibleRootFolderItems
   const selectedVisibleIds = folderSelection.selectedIds.filter((id) => selectableItems.some((folder) => folder.id === id))
-  const canDeleteSelected = selectedVisibleIds.some((id) => !isProtectedFolderId(id))
-  const canMoveSelected = selectedVisibleIds.some((id) => !isProtectedFolderId(id))
+  const canDeleteSelected = selectedVisibleIds.length > 0
+  const canMoveSelected = selectedVisibleIds.length > 0
 
   const createLabel = activeFolder && !isActiveChild ? '新建子文件夹' : '新建文件夹'
   const deletingNames = (deletingFolderIds ?? []).map((id) => folderItemMap.get(id)?.name ?? id)
@@ -420,6 +417,7 @@ export function FoldersView({
             <NoteListRow
               key={`note-${note.id}`}
               note={note}
+              query={query}
               onSelect={onSelectNote}
               selected={selectedVisibleNoteIdSet.has(note.id)}
               disabled={folderSelectionMode}
@@ -503,7 +501,7 @@ export function FoldersView({
               canDelete={canDeleteSelected}
               onSelectAll={selectAllVisible}
               onClearSelection={restoreSelectionBeforeSelectAll}
-              onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
+              onMove={() => openMove(selectedVisibleIds)}
               onDelete={() => openDelete(selectedVisibleIds)}
               onClear={clearSelection}
             />
@@ -605,7 +603,7 @@ export function FoldersView({
             canDelete={canDeleteSelected}
             onSelectAll={selectAllVisible}
             onClearSelection={restoreSelectionBeforeSelectAll}
-            onMove={() => openMove(selectedVisibleIds.filter((id) => !isProtectedFolderId(id)))}
+            onMove={() => openMove(selectedVisibleIds)}
             onDelete={() => openDelete(selectedVisibleIds)}
             onClear={clearSelection}
           />
