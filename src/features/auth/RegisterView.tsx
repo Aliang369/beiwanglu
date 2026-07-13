@@ -1,5 +1,5 @@
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { AgreementModal } from './AgreementModal'
 import { AuthInput } from './AuthInput'
@@ -27,6 +27,15 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
   const [errors, setErrors] = useState<RegisterErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [agreementModal, setAgreementModal] = useState<null | 'terms' | 'privacy'>(null)
+  const submitTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current !== null) {
+        window.clearTimeout(submitTimeoutRef.current)
+      }
+    }
+  }, [])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -66,7 +75,8 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
 
     setErrors({})
     setIsSubmitting(true)
-    window.setTimeout(() => {
+    submitTimeoutRef.current = window.setTimeout(() => {
+      submitTimeoutRef.current = null
       setIsSubmitting(false)
       onRegistered()
     }, 450)

@@ -2,11 +2,12 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Hash, Mail, Send } from 'lucide-re
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { AuthInput } from './AuthInput'
+import type { MockUserAccount } from './LoginView'
 
 interface CodeLoginViewProps {
   onBackToPasswordLogin: () => void
   onSwitchToRegister: () => void
-  onAuthenticated: () => void
+  onAuthenticated: (account: MockUserAccount) => void
 }
 
 interface CodeLoginErrors {
@@ -138,7 +139,15 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
     loginTimeoutRef.current = window.setTimeout(() => {
       loginTimeoutRef.current = null
       setIsSubmitting(false)
-      onAuthenticated()
+      const value = account.trim()
+      const isEmail = value.includes('@')
+      onAuthenticated({
+        account: value,
+        name: isEmail ? value.split('@')[0] : value,
+        email: isEmail ? value : `${value}@example.com`,
+        bio: '',
+        avatarUrl: null,
+      })
     }, 450)
   }
 

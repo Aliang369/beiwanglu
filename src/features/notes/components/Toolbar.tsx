@@ -1,5 +1,5 @@
-import { Bell, Clock3, LogOut, Menu, RefreshCw, Search, Shield, UserRound, Users, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { Bell, Clock3, LogOut, Menu, RefreshCw, Search, Shield, UserRound, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   clearSearchHistory,
   loadSearchHistory,
@@ -7,24 +7,28 @@ import {
   removeSearchHistoryItem,
 } from '../../../shared/notes/searchHistory'
 import { NotificationDropdown } from './NotificationDropdown'
+import type { MockUserAccount } from '../../auth/LoginView'
 import { messageItems, type MessageItem } from './messageMockData'
 
 const SEARCH_DEBOUNCE_MS = 200
 
 interface ToolbarProps {
   query: string
+  isAuthenticated: boolean
+  account: MockUserAccount | null
   onQueryChange: (query: string) => void
   onRefresh?: () => void | Promise<void>
+  onLoginClick?: () => void
   onProfileClick?: () => void
   onAccountSettingsClick?: () => void
-  onSwitchAccountClick?: () => void
   onLogoutClick?: () => void
   onMessagesClick?: () => void
   onMessageOpen?: (message: MessageItem) => void
 }
 
-export function Toolbar({ query, onQueryChange, onRefresh, onProfileClick, onAccountSettingsClick, onSwitchAccountClick, onLogoutClick, onMessagesClick, onMessageOpen }: ToolbarProps) {
+export function Toolbar({ query, isAuthenticated, account, onQueryChange, onRefresh, onLoginClick, onProfileClick, onAccountSettingsClick, onLogoutClick, onMessagesClick, onMessageOpen }: ToolbarProps) {
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(() => query.length > 0)
   const [draftQuery, setDraftQuery] = useState(query)
   const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
@@ -33,7 +37,12 @@ export function Toolbar({ query, onQueryChange, onRefresh, onProfileClick, onAcc
   const mobileInputRef = useRef<HTMLInputElement>(null)
   const desktopWrapRef = useRef<HTMLDivElement>(null)
   const mobileWrapRef = useRef<HTMLDivElement>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
+  const userMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const userMenuPopupRef = useRef<HTMLDivElement>(null)
+  const userMenuInitialFocusRef = useRef<'first' | 'last'>('first')
   const historyListId = useId()
+  const userMenuId = useId()
 
   useEffect(() => {
     setDraftQuery(query)
@@ -101,15 +110,25 @@ export function Toolbar({ query, onQueryChange, onRefresh, onProfileClick, onAcc
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as Node
-      if (desktopWrapRef.current?.contains(target) || mobileWrapRef.current?.contains(target)) {
-        return
+      if (!desktopWrapRef.current?.contains(target) && !mobileWrapRef.current?.contains(target)) {
+        setHistoryOpen(false)
       }
-      setHistoryOpen(false)
+      if (!userMenuRef.current?.contains(target)) {
+        setUserMenuOpen(false)
+      }
     }
 
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [])
+
+  useEffect(() => {
+    if (userMenuOpen) {
+      const menuItems = userMenuPopupRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      const target = userMenuInitialFocusRef.current === 'last' ? menuItems?.item((menuItems?.length ?? 1) - 1) : menuItems?.item(0)
+      target?.focus()
+    }
+  }, [userMenuOpen])
 
   async function handleRefresh() {
     if (!onRefresh || isRefreshing) {
@@ -169,6 +188,44 @@ export function Toolbar({ query, onQueryChange, onRefresh, onProfileClick, onAcc
   function handleClearHistory() {
     clearSearchHistory()
     setHistory([])
+  }
+
+  function closeUserMenu({ restoreFocus = false } = {}) {
+    setUserMenuOpen(false)
+    if (restoreFocus) {
+      window.setTimeout(() => userMenuTriggerRef.current?.focus(), 0)
+    }
+  }
+
+  function runUserMenuAction(action?: () => void) {
+    setUserMenuOpen(false)
+    userMenuTriggerRef.current?.focus()
+    action?.()
+  }
+
+  function handleUserMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const menuItems = Array.from(userMenuPopupRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement)
+    let nextIndex: number | null = null
+
+    if (event.key === 'ArrowDown') {
+      nextIndex = currentIndex < menuItems.length - 1 ? currentIndex + 1 : 0
+    } else if (event.key === 'ArrowUp') {
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : menuItems.length - 1
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = menuItems.length - 1
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeUserMenu({ restoreFocus: true })
+      return
+    }
+
+    if (nextIndex !== null) {
+      event.preventDefault()
+      menuItems[nextIndex]?.focus()
+    }
   }
 
   const showHistory = historyOpen && history.length > 0
@@ -368,35 +425,64 @@ export function Toolbar({ query, onQueryChange, onRefresh, onProfileClick, onAcc
             <NotificationDropdown messages={messageItems} onMessageOpen={onMessageOpen} onViewAll={onMessagesClick} />
           </div>
         </div>
-        <div className="group relative hidden md:flex">
+        {!isAuthenticated ? (
           <button
             type="button"
-            className="flex size-10 items-center justify-center overflow-hidden rounded-full border border-outline-variant/30 bg-primary-container text-on-primary transition-opacity hover:opacity-80"
-            aria-label="用户菜单"
+            onClick={onLoginClick}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-primary px-4 font-label-md text-label-md font-medium text-on-primary shadow-sm transition-all hover:bg-primary-container hover:text-on-primary-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.98]"
           >
-            <UserRound className="size-5" />
+            登录/注册
           </button>
+        ) : (
+          <div ref={userMenuRef} className="relative">
+            <button
+              ref={userMenuTriggerRef}
+              type="button"
+              onClick={() => {
+                userMenuInitialFocusRef.current = 'first'
+                setUserMenuOpen((open) => !open)
+              }}
+              onKeyDown={(event) => {
+                if (!userMenuOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                  event.preventDefault()
+                  userMenuInitialFocusRef.current = event.key === 'ArrowUp' ? 'last' : 'first'
+                  setUserMenuOpen(true)
+                }
+              }}
+              className="flex size-10 items-center justify-center overflow-hidden rounded-full border border-outline-variant/30 bg-primary-container text-on-primary transition-opacity hover:opacity-80"
+              aria-label="用户菜单"
+              aria-expanded={userMenuOpen}
+              aria-haspopup="menu"
+              aria-controls={userMenuOpen ? userMenuId : undefined}
+            >
+              {account?.avatarUrl ? <img src={account.avatarUrl} alt="" className="size-full object-cover" /> : <UserRound className="size-5" />}
+            </button>
 
-          <div className="invisible absolute top-full right-0 z-30 mt-2 w-48 rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 opacity-0 shadow-lg transition-all duration-200 group-hover:visible group-hover:opacity-100">
-            <button type="button" onClick={onProfileClick} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
-              <UserRound className="size-4" />
-              <span className="text-label-md">个人资料</span>
-            </button>
-            <button type="button" onClick={onAccountSettingsClick} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
-              <Shield className="size-4" />
-              <span className="text-label-md">账号设置</span>
-            </button>
-            <button type="button" onClick={onSwitchAccountClick} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
-              <Users className="size-4" />
-              <span className="text-label-md">切换账号</span>
-            </button>
-            <div className="my-1 border-t border-outline-variant/30" />
-            <button type="button" onClick={onLogoutClick} className="flex w-full items-center gap-3 px-4 py-2 text-left text-error transition-colors hover:bg-error-container/30">
-              <LogOut className="size-4" />
-              <span className="text-label-md">退出登录</span>
-            </button>
+            {userMenuOpen ? (
+              <div ref={userMenuPopupRef} id={userMenuId} role="menu" onKeyDown={handleUserMenuKeyDown} className="absolute top-full right-0 z-30 mt-2 w-48 rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-2 shadow-lg">
+                {account ? (
+                  <div className="border-b border-outline-variant/30 px-4 pb-2">
+                    <p className="truncate text-label-md font-medium text-on-surface">{account.name}</p>
+                    <p className="truncate text-label-sm text-on-surface-variant">{account.account}</p>
+                  </div>
+                ) : null}
+                <button type="button" role="menuitem" onClick={() => runUserMenuAction(onProfileClick)} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
+                  <UserRound className="size-4" />
+                  <span className="text-label-md">个人资料</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setUserMenuOpen(false); onAccountSettingsClick?.() }} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
+                  <Shield className="size-4" />
+                  <span className="text-label-md">账号设置</span>
+                </button>
+                <div className="my-1 border-t border-outline-variant/30" />
+                <button type="button" role="menuitem" onClick={() => runUserMenuAction(onLogoutClick)} className="flex w-full items-center gap-3 px-4 py-2 text-left text-error transition-colors hover:bg-error-container/30">
+                  <LogOut className="size-4" />
+                  <span className="text-label-md">退出登录</span>
+                </button>
+              </div>
+            ) : null}
           </div>
-        </div>
+        )}
       </div>
     </header>
   )

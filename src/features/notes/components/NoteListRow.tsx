@@ -1,5 +1,5 @@
 // 改动：列表菜单封面操作改用 CoverDialog / ConfirmDialog；支持搜索高亮
-import { CheckSquare, Copy, FileText, FolderInput, ImageOff, ImagePlus, Star, Trash2 } from 'lucide-react'
+import { CheckSquare, Copy, FileText, FolderInput, ImageOff, ImagePlus, Pin, Star, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { extractTextFromNoteContent } from '../../../shared/notes/noteDomain'
@@ -13,6 +13,7 @@ interface NoteListRowProps {
   query?: string
   onSelect?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void | Promise<void>
+  onTogglePinned?: (noteId: string) => void | Promise<void>
   onMoveToTrash?: (noteId: string) => void | Promise<void>
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicate?: (noteId: string) => void | Promise<void>
@@ -29,6 +30,7 @@ export function NoteListRow({
   query,
   onSelect,
   onToggleFavorite,
+  onTogglePinned,
   onMoveToTrash,
   onRequestMoveToFolder,
   onDuplicate,
@@ -97,7 +99,8 @@ export function NoteListRow({
       )}
 
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex min-w-0 items-center gap-3">
+        <div className="mb-1 flex min-w-0 items-center gap-1.5">
+          {note.pinned ? <Pin className="size-4 shrink-0 text-primary" /> : null}
           <h3 className="truncate font-headline-sm text-headline-sm text-on-surface transition-colors group-hover:text-primary">
             {highlightSearchMatch(titleText, query)}
           </h3>
@@ -124,8 +127,10 @@ export function NoteListRow({
             open={menuOpen}
             onOpenChange={setMenuOpen}
             hasCover={Boolean(note.cover)}
+            isPinned={Boolean(note.pinned)}
             onSetCover={onSetCover ? () => setCoverDialogOpen(true) : undefined}
             onRemoveCover={onSetCover && note.cover ? () => setRemoveCoverOpen(true) : undefined}
+            onTogglePinned={onTogglePinned ? () => void onTogglePinned(note.id) : undefined}
             onMoveToFolder={onRequestMoveToFolder ? () => onRequestMoveToFolder(note.id) : undefined}
             onStartSelection={onStartSelection ? () => onStartSelection(note.id) : undefined}
             onDuplicate={onDuplicate ? () => void onDuplicate(note.id) : undefined}
@@ -173,8 +178,10 @@ export function NoteListRowMoreControl({
   open,
   onOpenChange,
   hasCover = false,
+  isPinned = false,
   onSetCover,
   onRemoveCover,
+  onTogglePinned,
   onMoveToFolder,
   onStartSelection,
   onDuplicate,
@@ -182,14 +189,19 @@ export function NoteListRowMoreControl({
   open: boolean
   onOpenChange: (open: boolean) => void
   hasCover?: boolean
+  isPinned?: boolean
   onSetCover?: () => void
   onRemoveCover?: () => void
+  onTogglePinned?: () => void
   onMoveToFolder?: () => void
   onStartSelection?: () => void
   onDuplicate?: () => void
 }) {
   const items: HoverMenuItem[] = []
 
+  if (onTogglePinned) {
+    items.push({ key: 'pin', label: isPinned ? '取消置顶' : '置顶笔记', icon: Pin, onSelect: onTogglePinned })
+  }
   if (onSetCover) {
     items.push({ key: 'cover-set', label: hasCover ? '更换封面' : '设置封面', icon: ImagePlus, onSelect: onSetCover })
   }

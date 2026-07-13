@@ -33,6 +33,10 @@ export interface Note {
   deletedAt: string | null
   /** 封面图片 URL；null/undefined 表示无封面。 */
   cover?: string | null
+  /** 是否置顶（在列表顶部优先显示）。 */
+  pinned?: boolean
+  /** 是否只读（锁定内容防止意外修改）。 */
+  readOnly?: boolean
   createdAt: string
   updatedAt: string
 }

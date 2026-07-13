@@ -1,4 +1,4 @@
-import { Image } from 'lucide-react'
+import { Image, Pin } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { extractTextFromNoteContent } from '../../../shared/notes/noteDomain'
@@ -126,7 +126,10 @@ export function NoteCardShell({
               </p>
               <div className="min-h-0 flex-1" aria-hidden />
               <div className={`${cardFooterClass} justify-between`}>
-                <Image className="size-4 text-outline" />
+                <div className="flex items-center gap-2">
+                  <Image className="size-4 text-outline" />
+                  {note.pinned ? <Pin className="size-4 text-primary" /> : null}
+                </div>
                 <span className="font-label-sm text-label-sm text-outline">{updatedLabel}</span>
               </div>
             </div>
@@ -159,7 +162,10 @@ export function NoteCardShell({
                 </h3>
               </div>
               <div className={`${cardFooterClass} justify-between`}>
-                <Image className="size-4 text-outline" />
+                <div className="flex items-center gap-2">
+                  <Image className="size-4 text-outline" />
+                  {note.pinned ? <Pin className="size-4 text-primary" /> : null}
+                </div>
                 <span className="font-label-sm text-label-sm text-outline">{updatedLabel}</span>
               </div>
             </div>
@@ -208,7 +214,8 @@ export function NoteCardShell({
               <div className="relative z-10 min-h-0 flex-1" aria-hidden />
             </>
           )}
-          <div className={`relative z-10 ${cardFooterClass} justify-end gap-3`}>
+          <div className={`relative z-10 ${cardFooterClass} justify-between`}>
+            {note.pinned ? <Pin className="size-4 text-primary" /> : <span />}
             <span className="font-label-sm text-label-sm text-outline">{updatedLabel}</span>
           </div>
         </article>

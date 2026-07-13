@@ -9,7 +9,7 @@ export interface NotesRepository {
   createFolder(draft: FolderDraft): Promise<Folder>
   update(
     id: string,
-    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>>,
+    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover' | 'pinned' | 'readOnly'>>,
   ): Promise<Note>
   updateFolder(id: string, patch: Partial<Pick<Folder, 'name' | 'icon' | 'parentId'>>): Promise<Folder>
   delete(id: string): Promise<void>

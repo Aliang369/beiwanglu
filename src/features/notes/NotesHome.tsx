@@ -1,8 +1,9 @@
 // 改动：透传 onSetCover / updateNote 以支持封面读写；挂载标签筛选
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Plus } from 'lucide-react'
 import { AuthModal } from '../auth/AuthModal'
 import type { AuthMode } from '../auth/AuthModal'
+import type { MockUserAccount } from '../auth/LoginView'
 import { EditorView } from './components/EditorView'
 import { FavoritesView } from './components/FavoritesView'
 import { FoldersView } from './components/FoldersView'
@@ -21,6 +22,38 @@ import type { MessageItem } from './components/messageMockData'
 import { useNotesStore } from './notesStore'
 import { getAllTags, getVisibleNotes } from '../../shared/notes/noteSelectors'
 
+const AUTH_ACCOUNT_STORAGE_KEY = 'beiwanglu.auth.account.v1'
+
+function loadStoredAccount(): MockUserAccount | null {
+  try {
+    const stored = window.localStorage.getItem(AUTH_ACCOUNT_STORAGE_KEY)
+    if (!stored) {
+      return null
+    }
+
+    const parsed: unknown = JSON.parse(stored)
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof Reflect.get(parsed, 'account') !== 'string' ||
+      typeof Reflect.get(parsed, 'name') !== 'string' ||
+      typeof Reflect.get(parsed, 'email') !== 'string'
+    ) {
+      return null
+    }
+
+    return {
+      account: Reflect.get(parsed, 'account'),
+      name: Reflect.get(parsed, 'name'),
+      email: Reflect.get(parsed, 'email'),
+      bio: typeof Reflect.get(parsed, 'bio') === 'string' ? Reflect.get(parsed, 'bio') : '',
+      avatarUrl: typeof Reflect.get(parsed, 'avatarUrl') === 'string' ? Reflect.get(parsed, 'avatarUrl') : null,
+    }
+  } catch {
+    return null
+  }
+}
+
 export function NotesHome() {
   const {
     notes,
@@ -34,6 +67,8 @@ export function NotesHome() {
     updateSelectedNote,
     updateNote,
     toggleFavorite,
+    togglePinned,
+    toggleReadOnly,
     moveToTrash,
     restoreNote,
     permanentlyDeleteNote,
@@ -46,19 +81,58 @@ export function NotesHome() {
     setView,
     setQuery,
     setTagFilter,
+    snapshots,
+    loadSnapshots,
+    createSnapshot,
+    restoreSnapshot,
   } = useNotesStore()
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(() => new URL(window.location.href).searchParams.get('note'))
   const [utilityView, setUtilityView] = useState<'settings' | 'help' | 'messages' | null>(null)
   const [authModal, setAuthModal] = useState<AuthMode | null>(null)
+  const [account, setAccount] = useState<MockUserAccount | null>(loadStoredAccount)
+  const isAuthenticated = account !== null
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('profile')
   const [selectedMessage, setSelectedMessage] = useState<MessageItem | null>(null)
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null)
+  const [previewingSnapshotId, setPreviewingSnapshotId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoaded) {
       void loadNotes()
     }
   }, [isLoaded, loadNotes])
+
+  useEffect(() => {
+    if (!isLoaded || !editingNoteId) {
+      return
+    }
+    const target = notes.find((note) => note.id === editingNoteId && !note.isDeleted)
+    if (!target) {
+      setEditingNoteId(null)
+      setPreviewingSnapshotId(null)
+    }
+  }, [editingNoteId, isLoaded, notes])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (editingNoteId) {
+      url.searchParams.set('note', editingNoteId)
+    } else {
+      url.searchParams.delete('note')
+    }
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [editingNoteId])
+
+  useEffect(() => {
+    function handlePopState() {
+      const noteId = new URL(window.location.href).searchParams.get('note')
+      setEditingNoteId(noteId)
+      setPreviewingSnapshotId(null)
+      setUtilityView(null)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   const visibleNotes = getVisibleNotes(notes, filter)
   const allTags = getAllTags(notes.filter((note) => !note.isDeleted || filter.view === 'trash'))
@@ -84,53 +158,81 @@ export function NotesHome() {
       })),
   ]
 
+  /** 退出编辑页：清除编辑 id 与预览状态 */
+  const exitEditor = useCallback(() => {
+    setEditingNoteId(null)
+    setPreviewingSnapshotId(null)
+  }, [])
+
   function handleViewChange(view: Parameters<typeof setView>[0]) {
     setUtilityView(null)
-    setEditingNoteId(null)
+    exitEditor()
     setView(view)
   }
 
   function handleShowAllNotes() {
     setUtilityView(null)
-    setEditingNoteId(null)
+    exitEditor()
     setView('all')
   }
 
   function handleSettingsClick() {
-    setEditingNoteId(null)
+    exitEditor()
+    if (!isAuthenticated) {
+      setAuthModal('login')
+      return
+    }
     setSettingsTab('profile')
     setUtilityView('settings')
   }
 
   function handleHelpClick() {
-    setEditingNoteId(null)
+    exitEditor()
     setUtilityView('help')
   }
 
   function handleProfileClick() {
-    setEditingNoteId(null)
+    exitEditor()
     setSettingsTab('profile')
     setUtilityView('settings')
   }
 
   function handleAccountSettingsClick() {
-    setEditingNoteId(null)
+    exitEditor()
     setSettingsTab('security')
     setUtilityView('settings')
   }
 
   function handleMessagesClick() {
-    setEditingNoteId(null)
+    exitEditor()
     setUtilityView('messages')
   }
 
-  function handleSwitchAccount() {
-    setAuthModal('login')
+  function persistAccount(nextAccount: MockUserAccount) {
+    try {
+      window.localStorage.setItem(AUTH_ACCOUNT_STORAGE_KEY, JSON.stringify(nextAccount))
+      setAccount(nextAccount)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  function handleAuthenticated(nextAccount: MockUserAccount) {
+    if (!persistAccount(nextAccount)) {
+      setAccount(nextAccount)
+    }
+    setAuthModal(null)
   }
 
   function handleLogout() {
-    // TODO: 接入真实退出登录逻辑。
+    window.localStorage.removeItem(AUTH_ACCOUNT_STORAGE_KEY)
+    setAccount(null)
     setAuthModal(null)
+    setUtilityView(null)
+    exitEditor()
+    setView('all')
+    window.history.replaceState(null, '', '/')
   }
 
   async function handleCreateNote() {
@@ -147,7 +249,9 @@ export function NotesHome() {
         note={editingNote}
         folders={folders}
         availableTags={allTags}
-        onBack={() => setEditingNoteId(null)}
+        snapshots={editingNote ? snapshots[editingNote.id] ?? [] : []}
+        previewingSnapshotId={previewingSnapshotId}
+        onBack={exitEditor}
         onChange={(patch) => {
           if (editingNote) {
             selectNote(editingNote.id)
@@ -155,14 +259,43 @@ export function NotesHome() {
           }
         }}
         onToggleFavorite={(noteId) => void toggleFavorite(noteId)}
+        onTogglePinned={(noteId) => void togglePinned(noteId)}
+        onToggleReadOnly={(noteId) => void toggleReadOnly(noteId)}
         onMoveToTrash={(noteId) => {
           void moveToTrash(noteId)
-          setEditingNoteId(null)
+          exitEditor()
+        }}
+        onRequestMoveToFolder={(noteId) => setMovingNoteId(noteId)}
+        onSubmitSearch={(query) => {
+          setQuery(query)
+          exitEditor()
+        }}
+        onSaved={(noteId, content, title) => {
+          createSnapshot(noteId, content, title)
+        }}
+        onLoadSnapshots={(noteId) => loadSnapshots(noteId)}
+        onPreviewSnapshot={(snapshotId) => setPreviewingSnapshotId(snapshotId)}
+        onExitPreview={() => setPreviewingSnapshotId(null)}
+        onRestoreSnapshot={async (snapshotId) => {
+          if (editingNote) {
+            await restoreSnapshot(editingNote.id, snapshotId)
+            setPreviewingSnapshotId(null)
+          }
         }}
       />
     )
-  } else if (utilityView === 'settings') {
-    mainContent = <SettingsView initialTab={settingsTab} />
+  } else if (utilityView === 'settings' && account) {
+    mainContent = (
+      <SettingsView
+        initialTab={settingsTab}
+        account={account}
+        onAccountChange={(nextAccount) => {
+          if (!persistAccount(nextAccount)) {
+            throw new Error('local-storage-full')
+          }
+        }}
+      />
+    )
   } else if (utilityView === 'help') {
     mainContent = <HelpView />
   } else if (utilityView === 'messages') {
@@ -170,11 +303,13 @@ export function NotesHome() {
       <>
         <Toolbar
           query={filter.query}
+          isAuthenticated={isAuthenticated}
+          account={account}
           onQueryChange={setQuery}
           onRefresh={() => loadNotes()}
+          onLoginClick={() => setAuthModal('login')}
           onProfileClick={handleProfileClick}
           onAccountSettingsClick={handleAccountSettingsClick}
-          onSwitchAccountClick={handleSwitchAccount}
           onLogoutClick={handleLogout}
           onMessagesClick={handleMessagesClick}
           onMessageOpen={setSelectedMessage}
@@ -187,11 +322,13 @@ export function NotesHome() {
       <>
         <Toolbar
           query={filter.query}
+          isAuthenticated={isAuthenticated}
+          account={account}
           onQueryChange={setQuery}
           onRefresh={() => loadNotes()}
+          onLoginClick={() => setAuthModal('login')}
           onProfileClick={handleProfileClick}
           onAccountSettingsClick={handleAccountSettingsClick}
-          onSwitchAccountClick={handleSwitchAccount}
           onLogoutClick={handleLogout}
           onMessagesClick={handleMessagesClick}
           onMessageOpen={setSelectedMessage}
@@ -232,6 +369,7 @@ export function NotesHome() {
             onClearTagFilter={() => setTagFilter(null)}
             onSelectNote={setEditingNoteId}
             onToggleFavorite={(noteId) => toggleFavorite(noteId)}
+            onTogglePinned={(noteId) => togglePinned(noteId)}
             onMoveNoteToTrash={(noteId) => moveToTrash(noteId)}
             onRequestMoveNoteToFolder={setMovingNoteId}
             onMoveNoteToFolder={(noteId, folderId) => moveToFolder(noteId, folderId)}
@@ -259,6 +397,7 @@ export function NotesHome() {
               onOpenHelp={handleHelpClick}
               onSelectNote={setEditingNoteId}
               onToggleFavorite={(noteId) => void toggleFavorite(noteId)}
+              onTogglePinned={(noteId) => void togglePinned(noteId)}
               onMoveToTrash={(noteId) => moveToTrash(noteId)}
               onRequestMoveToFolder={setMovingNoteId}
               onDuplicateNote={(noteId) => void duplicateNote(noteId)}
@@ -296,7 +435,7 @@ export function NotesHome() {
       >
         <Plus className="size-6" />
       </button>
-      {authModal ? <AuthModal mode={authModal} onModeChange={setAuthModal} onClose={() => setAuthModal(null)} /> : null}
+      {authModal ? <AuthModal mode={authModal} onModeChange={setAuthModal} onAuthenticated={handleAuthenticated} onClose={() => setAuthModal(null)} /> : null}
       {movingNote ? (
         <MoveToFolderDialog
           note={movingNote}

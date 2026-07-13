@@ -8,10 +8,12 @@ interface EditorInfoPanelProps {
   note: Note
   availableTags?: NoteTag[]
   onChangeTags?: (tags: NoteTag[]) => void
+  onToggleReadOnly?: () => void
+  onTogglePinned?: () => void
   onClose: () => void
 }
 
-export function EditorInfoPanel({ note, availableTags = [], onChangeTags, onClose }: EditorInfoPanelProps) {
+export function EditorInfoPanel({ note, availableTags = [], onChangeTags, onToggleReadOnly, onTogglePinned, onClose }: EditorInfoPanelProps) {
   const chars = countVisibleNoteChars(note.title, note.content)
   const readingMinutes = Math.max(1, Math.ceil(chars / 500))
 
@@ -61,6 +63,7 @@ export function EditorInfoPanel({ note, availableTags = [], onChangeTags, onClos
               availableTags={availableTags}
               onChange={onChangeTags}
               variant="panel"
+              readOnly={note.readOnly}
             />
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -74,22 +77,51 @@ export function EditorInfoPanel({ note, availableTags = [], onChangeTags, onClos
         </section>
         <section className="mt-auto border-t border-outline-variant/30 pt-6">
           <h3 className="mb-4 font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">偏好设置</h3>
-          {[['只读模式', '锁定内容防止意外修改', Eye], ['置顶笔记', '在列表顶部优先显示', Pin]].map(([title, desc, Icon], index) => (
-            <div key={title as string} className="-mx-2 flex items-center justify-between rounded-lg p-2 hover:bg-surface-container-lowest">
-              <div className="flex items-center gap-3">
-                <div className="flex size-8 items-center justify-center rounded-full bg-surface-container text-on-surface-variant"><Icon className="size-4" /></div>
-                <div>
-                  <span className="block font-label-md text-label-md text-on-surface">{title as string}</span>
-                  <span className="font-label-sm text-[11px] text-on-surface-variant">{desc as string}</span>
-                </div>
-              </div>
-              <div className={`h-6 w-11 rounded-full p-0.5 ${index === 1 ? 'bg-primary' : 'bg-outline-variant/50'}`}>
-                <div className={`size-5 rounded-full bg-white transition-transform ${index === 1 ? 'translate-x-5' : ''}`} />
-              </div>
-            </div>
-          ))}
+          <PreferenceToggle
+            icon={Eye}
+            title="只读模式"
+            description="锁定内容防止意外修改"
+            active={Boolean(note.readOnly)}
+            onToggle={onToggleReadOnly}
+          />
+          <PreferenceToggle
+            icon={Pin}
+            title="置顶笔记"
+            description="在列表顶部优先显示"
+            active={Boolean(note.pinned)}
+            onToggle={onTogglePinned}
+          />
         </section>
       </div>
     </aside>
+  )
+}
+
+interface PreferenceToggleProps {
+  icon: typeof Eye
+  title: string
+  description: string
+  active: boolean
+  onToggle?: () => void
+}
+
+function PreferenceToggle({ icon: Icon, title, description, active, onToggle }: PreferenceToggleProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between rounded-lg p-2 transition-colors hover:bg-surface-container-lowest"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 items-center justify-center rounded-full bg-surface-container text-on-surface-variant"><Icon className="size-4" /></div>
+        <div className="text-left">
+          <span className="block font-label-md text-label-md text-on-surface">{title}</span>
+          <span className="font-label-sm text-[11px] text-on-surface-variant">{description}</span>
+        </div>
+      </div>
+      <div className={`h-6 w-11 rounded-full p-0.5 transition-colors ${active ? 'bg-primary' : 'bg-outline-variant/50'}`}>
+        <div className={`size-5 rounded-full bg-white transition-transform ${active ? 'translate-x-5' : ''}`} />
+      </div>
+    </button>
   )
 }

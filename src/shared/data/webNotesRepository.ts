@@ -86,7 +86,7 @@ export class WebNotesRepository implements NotesRepository {
 
   async update(
     id: string,
-    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>>,
+    patch: Partial<Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover' | 'pinned' | 'readOnly'>>,
   ) {
     const data = this.read()
     const index = data.notes.findIndex((note) => note.id === id)

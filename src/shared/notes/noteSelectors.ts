@@ -67,11 +67,13 @@ export function getVisibleNotes(notes: Note[], filter: NotesFilter) {
   const terms = parseSearchTerms(filter.query)
 
   if (terms.length === 0) {
-    return notes.filter((note) => {
-      const matchesView = matchesNotesView(note, filter.view)
-      const matchesTag = !filter.tagId || note.tags.some((tag) => tag.id === filter.tagId)
-      return matchesView && matchesTag
-    })
+    return notes
+      .filter((note) => {
+        const matchesView = matchesNotesView(note, filter.view)
+        const matchesTag = !filter.tagId || note.tags.some((tag) => tag.id === filter.tagId)
+        return matchesView && matchesTag
+      })
+      .sort(compareNotesPinnedFirst)
   }
 
   const scored: Array<{ note: Note; score: number }> = []
@@ -100,10 +102,20 @@ export function getVisibleNotes(notes: Note[], filter: NotesFilter) {
       return b.score - a.score
     }
 
-    return new Date(b.note.updatedAt).getTime() - new Date(a.note.updatedAt).getTime()
+    return compareNotesPinnedFirst(a.note, b.note)
   })
 
   return scored.map(({ note }) => note)
+}
+
+/** 置顶笔记优先排在顶部，同级别按最后修改时间倒序。 */
+function compareNotesPinnedFirst(a: Note, b: Note) {
+  const ap = a.pinned ? 1 : 0
+  const bp = b.pinned ? 1 : 0
+  if (ap !== bp) {
+    return bp - ap
+  }
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
 }
 
 /** 从各笔记 tags 聚合去重（note-scoped 标签的列表侧视图，非全局标签表）。 */

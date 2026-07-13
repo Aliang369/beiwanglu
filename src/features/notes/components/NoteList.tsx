@@ -24,6 +24,7 @@ interface NoteListProps {
   onOpenHelp?: () => void
   onSelectNote?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
+  onTogglePinned?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicateNote?: (noteId: string) => void
@@ -43,6 +44,7 @@ export function NoteList({
   onOpenHelp,
   onSelectNote,
   onToggleFavorite,
+  onTogglePinned,
   onMoveToTrash,
   onRequestMoveToFolder,
   onDuplicateNote,
@@ -68,6 +70,7 @@ export function NoteList({
 
   const noteActions = {
     onToggleFavorite,
+    onTogglePinned,
     onMoveToTrash,
     onRequestMoveToFolder,
     onDuplicate: onDuplicateNote,

@@ -18,6 +18,8 @@ interface NoteEditorTagsProps {
   /** 编辑页：放在「添加标签」后的元信息等 */
   trailing?: ReactNode
   className?: string
+  /** 只读模式：隐藏添加按钮、禁用标签删除 */
+  readOnly?: boolean
 }
 
 /** 与 TagChip size="editor" 完全同高：h-7 + px-2.5 + label-sm */
@@ -45,6 +47,7 @@ export function NoteEditorTags({
   variant = 'editor',
   trailing,
   className = '',
+  readOnly = false,
 }: NoteEditorTagsProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
@@ -134,18 +137,20 @@ export function NoteEditorTags({
       <div ref={rootRef} className={`relative ${className}`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">标签</h3>
-          <button type="button" onClick={() => setOpen((value) => !value)} className={addButtonClass} aria-label="添加标签" aria-expanded={open} aria-controls={panelId}>
-            <Plus className="size-4" />
-          </button>
+          {readOnly ? null : (
+            <button type="button" onClick={() => setOpen((value) => !value)} className={addButtonClass} aria-label="添加标签" aria-expanded={open} aria-controls={panelId}>
+              <Plus className="size-4" />
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {tags.length > 0 ? (
-            tags.map((tag) => <TagChip key={tag.id} tag={tag} size="editor" onRemove={removeTag} />)
+            tags.map((tag) => <TagChip key={tag.id} tag={tag} size="editor" onRemove={readOnly ? undefined : removeTag} />)
           ) : (
             <span className="font-label-sm text-label-sm text-on-surface-variant">暂无标签</span>
           )}
         </div>
-        {renderPicker()}
+        {readOnly ? null : renderPicker()}
       </div>
     )
   }
@@ -153,13 +158,15 @@ export function NoteEditorTags({
   return (
     <div ref={rootRef} className={`relative flex flex-wrap items-center gap-x-2 gap-y-1.5 ${className}`}>
       {tags.map((tag) => (
-        <TagChip key={tag.id} tag={tag} size="editor" onRemove={removeTag} />
+        <TagChip key={tag.id} tag={tag} size="editor" onRemove={readOnly ? undefined : removeTag} />
       ))}
-      <button type="button" onClick={() => setOpen((value) => !value)} className={addButtonClass} aria-expanded={open} aria-controls={panelId}>
-        添加标签
-      </button>
+      {readOnly ? null : (
+        <button type="button" onClick={() => setOpen((value) => !value)} className={addButtonClass} aria-expanded={open} aria-controls={panelId}>
+          添加标签
+        </button>
+      )}
       {trailing ? <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 pl-2">{trailing}</div> : null}
-      {renderPicker()}
+      {readOnly ? null : renderPicker()}
     </div>
   )
 

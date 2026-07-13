@@ -9,6 +9,7 @@ interface NoteTitleEditorProps {
   onChange: (title: string) => void
   className?: string
   placeholder?: string
+  readOnly?: boolean
 }
 
 /**
@@ -22,6 +23,7 @@ export function NoteTitleEditor({
   onChange,
   className = '',
   placeholder = '给灵感起个名字…',
+  readOnly = false,
 }: NoteTitleEditorProps) {
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -92,6 +94,13 @@ export function NoteTitleEditor({
       editor.commands.setContent(title || '', { emitUpdate: false })
     }
   }, [editor, noteId, title])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+    editor.setEditable(!readOnly)
+  }, [editor, readOnly])
 
   useEffect(() => {
     return () => {

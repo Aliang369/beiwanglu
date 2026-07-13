@@ -123,7 +123,7 @@ export function createExcerpt(content: string) {
 
 
 export type NotePatch = Partial<
-  Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover'>
+  Pick<Note, 'title' | 'content' | 'tags' | 'folderId' | 'isFavorite' | 'isDeleted' | 'deletedAt' | 'cover' | 'pinned' | 'readOnly'>
 >
 
 export function sortNotesByUpdatedAt(notes: Note[]) {
@@ -141,6 +141,8 @@ export function buildNewNote(draft: NoteDraft, id: string, now: string): Note {
     isFavorite: false,
     isDeleted: false,
     deletedAt: null,
+    pinned: false,
+    readOnly: false,
     createdAt: now,
     updatedAt: now,
   }
@@ -209,6 +211,8 @@ export function normalizeNote(raw: Note, now = new Date().toISOString()): Note {
     excerpt: createExcerpt(content),
     isDeleted,
     deletedAt,
+    pinned: Boolean(raw.pinned),
+    readOnly: Boolean(raw.readOnly),
   }
 
   // 规范化 cover：空字符串视为无封面

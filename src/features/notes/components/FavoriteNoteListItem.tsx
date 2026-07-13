@@ -1,4 +1,4 @@
-import { Clock3, Star } from 'lucide-react'
+import { Clock3, Pin, Star } from 'lucide-react'
 import type { Note } from '../../../shared/types/note'
 import { extractTextFromNoteContent } from '../../../shared/notes/noteDomain'
 import { formatUpdatedAt, getNoteTagNames } from '../../../shared/notes/noteSelectors'
@@ -27,7 +27,8 @@ export function FavoriteNoteListItem({ note, query, onSelect }: FavoriteNoteList
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex min-w-0 items-center gap-3">
+        <div className="mb-1 flex min-w-0 items-center gap-1.5">
+          {note.pinned ? <Pin className="size-4 shrink-0 text-primary" /> : null}
           <h3 className="truncate font-headline-sm text-headline-sm text-on-surface transition-colors group-hover:text-primary">
             {highlightSearchMatch(titleText, query)}
           </h3>

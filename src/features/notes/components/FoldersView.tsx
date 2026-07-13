@@ -32,6 +32,7 @@ interface FoldersViewProps {
   onClearTagFilter?: () => void
   onSelectNote?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void | Promise<void>
+  onTogglePinned?: (noteId: string) => void | Promise<void>
   onMoveNoteToTrash?: (noteId: string) => void | Promise<void>
   onRequestMoveNoteToFolder?: (noteId: string) => void
   onMoveNoteToFolder?: (noteId: string, folderId: string | null) => void | Promise<void>
@@ -54,6 +55,7 @@ export function FoldersView({
   onClearTagFilter,
   onSelectNote,
   onToggleFavorite,
+  onTogglePinned,
   onMoveNoteToTrash,
   onRequestMoveNoteToFolder,
   onMoveNoteToFolder,
@@ -268,6 +270,7 @@ export function FoldersView({
 
   const noteActions = {
     onToggleFavorite: folderSelectionMode ? undefined : onToggleFavorite,
+    onTogglePinned: folderSelectionMode ? undefined : onTogglePinned,
     onMoveToTrash: folderSelectionMode ? undefined : onMoveNoteToTrash,
     onRequestMoveToFolder: folderSelectionMode ? undefined : onRequestMoveNoteToFolder,
     onDuplicate: folderSelectionMode ? undefined : onDuplicateNote,

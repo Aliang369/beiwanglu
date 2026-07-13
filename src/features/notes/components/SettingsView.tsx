@@ -1,42 +1,27 @@
 import {
   Camera,
-  CheckCircle2,
   Laptop,
   Lock,
   Monitor,
-  Palette,
   Shield,
   Smartphone,
-  Sparkles,
   User,
 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import type { MockUserAccount } from '../../auth/LoginView'
 
-export type SettingsTab = 'profile' | 'appearance' | 'security'
+export type SettingsTab = 'profile' | 'security'
 
 interface SettingsViewProps {
   initialTab?: SettingsTab
+  account: MockUserAccount
+  onAccountChange: (account: MockUserAccount) => void
 }
 
 const tabs = [
   { id: 'profile', label: '个人资料', icon: User },
-  { id: 'appearance', label: '外观设置', icon: Palette },
   { id: 'security', label: '账户安全', icon: Shield },
 ] satisfies Array<{ id: SettingsTab; label: string; icon: typeof User }>
-
-const accentColors = ['bg-primary', 'bg-[#7C3AED]', 'bg-[#DB2777]', 'bg-[#059669]', 'bg-[#EA580C]', 'bg-[#475569]']
-
-function Toggle({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`h-6 w-12 shrink-0 rounded-full p-0.5 transition-colors ${checked ? 'bg-primary' : 'bg-outline-variant'}`}
-    >
-      <span className={`block size-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : ''}`} />
-    </button>
-  )
-}
 
 function SettingsCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -66,12 +51,8 @@ function SectionTitle({ icon: Icon, tone = 'primary', children }: { icon?: typeo
   )
 }
 
-export function SettingsView({ initialTab = 'profile' }: SettingsViewProps) {
+export function SettingsView({ initialTab = 'profile', account, onAccountChange }: SettingsViewProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab)
-  const [accentColor, setAccentColor] = useState(accentColors[0])
-  const [fontSize, setFontSize] = useState(16)
-  const [glassEnabled, setGlassEnabled] = useState(true)
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
 
   useEffect(() => {
     setActiveTab(initialTab)
@@ -105,19 +86,9 @@ export function SettingsView({ initialTab = 'profile' }: SettingsViewProps) {
         </aside>
 
         <div className="min-w-0 flex-1 pb-16">
-          {activeTab === 'profile' ? <ProfileSettings /> : null}
-          {activeTab === 'appearance' ? (
-            <AppearanceSettings
-              accentColor={accentColor}
-              fontSize={fontSize}
-              glassEnabled={glassEnabled}
-              onAccentColorChange={setAccentColor}
-              onFontSizeChange={setFontSize}
-              onGlassToggle={() => setGlassEnabled((value) => !value)}
-            />
-          ) : null}
+          {activeTab === 'profile' ? <ProfileSettings account={account} onAccountChange={onAccountChange} /> : null}
           {activeTab === 'security' ? (
-            <SecuritySettings twoFactorEnabled={twoFactorEnabled} onTwoFactorToggle={() => setTwoFactorEnabled((value) => !value)} />
+            <SecuritySettings />
           ) : null}
         </div>
       </div>
@@ -125,29 +96,128 @@ export function SettingsView({ initialTab = 'profile' }: SettingsViewProps) {
   )
 }
 
-function ProfileSettings() {
+function ProfileSettings({ account, onAccountChange }: { account: MockUserAccount; onAccountChange: (account: MockUserAccount) => void }) {
+  const [name, setName] = useState(account.name)
+  const [email, setEmail] = useState(account.email)
+  const [bio, setBio] = useState(account.bio)
+  const [avatarUrl, setAvatarUrl] = useState(account.avatarUrl)
+  const [errors, setErrors] = useState<{ name?: string; email?: string; avatar?: string; save?: string }>({})
+  const [status, setStatus] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setName(account.name)
+    setEmail(account.email)
+    setBio(account.bio)
+    setAvatarUrl(account.avatarUrl)
+  }, [account])
+
+  async function processAvatarFile(file: File) {
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setErrors((current) => ({ ...current, avatar: '请选择 JPG 或 PNG 图片' }))
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((current) => ({ ...current, avatar: '头像文件不能超过 5MB' }))
+      return
+    }
+
+    try {
+      const dataUrl = await compressImageToDataUrl(file)
+      setAvatarUrl(dataUrl)
+      setErrors((current) => ({ ...current, avatar: undefined }))
+      setStatus(null)
+    } catch {
+      setErrors((current) => ({ ...current, avatar: '无法处理该图片，请重试' }))
+    }
+  }
+
+  function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+    void processAvatarFile(file)
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nextErrors: { name?: string; email?: string } = {}
+    const nextName = name.trim()
+    const nextEmail = email.trim()
+    const nextBio = bio.trim()
+
+    if (!nextName) {
+      nextErrors.name = '请输入昵称'
+    } else if (nextName.length > 32) {
+      nextErrors.name = '昵称不能超过 32 个字符'
+    }
+
+    if (!nextEmail) {
+      nextErrors.email = '请输入邮箱地址'
+    } else if (!/^\S+@\S+\.\S+$/.test(nextEmail)) {
+      nextErrors.email = '请输入有效的邮箱地址'
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors((current) => ({ ...current, ...nextErrors }))
+      setStatus(null)
+      return
+    }
+
+    try {
+      onAccountChange({
+        ...account,
+        account: account.account === account.email ? nextEmail : account.account,
+        name: nextName,
+        email: nextEmail,
+        bio: nextBio,
+        avatarUrl,
+      })
+      setName(nextName)
+      setEmail(nextEmail)
+      setBio(nextBio)
+      setErrors({})
+      setStatus('资料已保存到本地')
+    } catch {
+      setStatus(null)
+      setErrors((current) => ({ ...current, avatar: '本地存储空间不足，请换更小的头像后重试' }))
+    }
+  }
+
   return (
-    <div>
+    <form onSubmit={handleSubmit} noValidate>
       <div className="space-y-6">
         <SettingsCard>
           <SectionTitle icon={User}>基本信息</SectionTitle>
 
           <div className="flex flex-col gap-stack-lg">
             <div className="flex items-center gap-stack-md">
-              <div className="group relative flex size-20 cursor-pointer items-center justify-center rounded-full border-2 border-surface-container-high bg-primary-container text-on-primary">
-                <User className="size-8" />
-                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-describedby={errors.avatar ? 'avatar-error' : 'avatar-help'}
+                className="group relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-surface-container-high bg-primary-container text-on-primary"
+                aria-label="更改头像"
+              >
+                {avatarUrl ? <img src={avatarUrl} alt="当前头像" className="size-full object-cover" /> : <User className="size-8" />}
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                   <Camera className="size-5 text-white" />
-                </div>
-              </div>
+                </span>
+              </button>
               <div className="flex flex-col gap-2">
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" onChange={handleAvatarChange} className="hidden" />
                 <button
                   type="button"
+                  onClick={() => fileInputRef.current?.click()}
                   className="rounded-full border border-outline-variant/30 bg-surface-container px-4 py-2 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-high"
                 >
                   更改头像
                 </button>
-                <span className="font-label-sm text-label-sm text-outline">支持 JPG, PNG. 最大 5MB.</span>
+                <span className="font-label-sm text-label-sm text-outline">支持 JPG、PNG，最大 5MB</span>
+                {errors.avatar ? <span className="font-label-sm text-label-sm text-error">{errors.avatar}</span> : null}
               </div>
             </div>
 
@@ -155,226 +225,215 @@ function ProfileSettings() {
               <label className="flex flex-col gap-2">
                 <span className="font-label-md text-label-md text-on-surface">昵称</span>
                 <input
-                  className="border-0 border-b border-outline-variant bg-transparent px-0 py-2 font-body-md text-body-md transition-colors focus:border-primary focus:outline-none"
-                  defaultValue="ProductiveUser"
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value)
+                    setErrors((current) => ({ ...current, name: undefined }))
+                    setStatus(null)
+                  }}
+                  className={`border-0 border-b bg-transparent px-0 py-2 font-body-md text-body-md transition-colors focus:outline-none ${errors.name ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                  autoComplete="nickname"
                 />
+                {errors.name ? <span className="font-label-sm text-label-sm text-error">{errors.name}</span> : null}
               </label>
               <label className="flex flex-col gap-2">
                 <span className="font-label-md text-label-md text-on-surface">邮箱</span>
                 <input
-                  className="border-0 border-b border-outline-variant bg-transparent px-0 py-2 font-body-md text-body-md transition-colors focus:border-primary focus:outline-none"
-                  defaultValue="user@example.com"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value)
+                    setErrors((current) => ({ ...current, email: undefined }))
+                    setStatus(null)
+                  }}
+                  className={`border-0 border-b bg-transparent px-0 py-2 font-body-md text-body-md transition-colors focus:outline-none ${errors.email ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
                   type="email"
+                  autoComplete="email"
                 />
+                {errors.email ? <span className="font-label-sm text-label-sm text-error">{errors.email}</span> : null}
               </label>
               <label className="flex flex-col gap-2 md:col-span-2">
                 <span className="font-label-md text-label-md text-on-surface">个人简介</span>
                 <textarea
+                  value={bio}
+                  onChange={(event) => {
+                    setBio(event.target.value)
+                    setStatus(null)
+                  }}
                   className="resize-none border-0 border-b border-outline-variant bg-transparent px-0 py-2 font-body-md text-body-md transition-colors focus:border-primary focus:outline-none"
                   placeholder="写点什么来介绍自己..."
+                  maxLength={200}
                   rows={3}
                 />
+                <span className="text-right font-label-sm text-label-sm text-outline">{bio.length}/200</span>
               </label>
             </div>
           </div>
         </SettingsCard>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex items-center justify-end gap-4">
+          {status ? <p className="font-label-md text-label-md text-primary" role="status">{status}</p> : null}
+          {errors.save ? <p className="font-label-md text-label-md text-error" role="alert">{errors.save}</p> : null}
           <button
-            type="button"
+            type="submit"
             className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary shadow-sm transition-all hover:opacity-90 active:scale-95"
           >
             保存更改
           </button>
         </div>
       </div>
-    </div>
+    </form>
   )
 }
 
-function AppearanceSettings({
-  accentColor,
-  fontSize,
-  glassEnabled,
-  onAccentColorChange,
-  onFontSizeChange,
-  onGlassToggle,
-}: {
-  accentColor: string
-  fontSize: number
-  glassEnabled: boolean
-  onAccentColorChange: (color: string) => void
-  onFontSizeChange: (size: number) => void
-  onGlassToggle: () => void
-}) {
-  return (
-    <div>
-      <div className="space-y-6">
-        <SettingsCard>
-          <SectionTitle icon={Monitor}>主题模式</SectionTitle>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {['浅色模式', '深色模式', '跟随系统'].map((label, index) => (
-              <button key={label} type="button" className={`group flex flex-col gap-3 text-left ${index === 0 ? '' : 'opacity-60 transition-opacity hover:opacity-100'}`}>
-                <div
-                  className={`relative aspect-video overflow-hidden rounded-xl ${
-                    index === 0
-                      ? 'border-2 border-primary bg-white shadow-sm ring-4 ring-primary/10'
-                      : index === 1
-                        ? 'border border-outline-variant bg-inverse-surface'
-                        : 'flex border border-outline-variant bg-gradient-to-r from-white to-inverse-surface'
-                  }`}
-                >
-                  <div className={`absolute top-3 left-3 h-2 w-12 rounded-full ${index === 1 ? 'bg-slate-700' : 'bg-slate-100'}`} />
-                  <div className={`absolute top-7 left-3 h-2 w-20 rounded-full ${index === 1 ? 'bg-slate-800' : 'bg-slate-50'}`} />
-                  <div className={`absolute top-3 right-3 size-6 rounded-lg ${index === 1 ? 'bg-slate-700' : 'bg-slate-100'}`} />
-                  {index === 2 ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="rounded-full border border-outline-variant bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest shadow-lg">Auto</span>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="flex items-center justify-between px-1">
-                  <span className={`font-label-md text-label-md ${index === 0 ? 'font-bold text-on-surface' : 'text-on-surface-variant'}`}>{label}</span>
-                  {index === 0 ? <CheckCircle2 className="size-5 text-primary" /> : null}
-                </div>
-              </button>
-            ))}
-          </div>
-        </SettingsCard>
+function getPasswordStrength(password: string) {
+  if (!password) {
+    return { label: '未输入', className: 'text-on-surface-variant' }
+  }
 
-        <SettingsCard>
-          <SectionTitle icon={Palette}>强调色</SectionTitle>
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <p className="font-label-sm text-label-sm text-on-surface-variant">选择界面的核心交互颜色</p>
-            <div className="flex flex-wrap gap-3">
-              {accentColors.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => onAccentColorChange(color)}
-                  className={`size-8 rounded-full ${color} transition-transform hover:scale-110 active:scale-95 ${accentColor === color ? 'ring-2 ring-primary ring-offset-2' : ''}`}
-                />
-              ))}
-            </div>
-          </div>
-        </SettingsCard>
+  let score = 0
+  if (password.length >= 8) score += 1
+  if (password.length >= 12) score += 1
+  if (/[A-Za-z]/.test(password) && /\d/.test(password)) score += 1
+  if (/[^A-Za-z0-9]/.test(password)) score += 1
 
-        <SettingsCard>
-          <SectionTitle icon={Sparkles}>字体设置</SectionTitle>
-          <div className="grid grid-cols-1 gap-stack-lg md:grid-cols-2">
-            <div className="space-y-4">
-              <h4 className="font-label-md text-label-md font-bold uppercase tracking-wider text-on-surface-variant">字体族</h4>
-              {['Noto Sans SC', 'Source Serif', 'JetBrains Mono'].map((font, index) => (
-                <button
-                  key={font}
-                  type="button"
-                  className={`flex w-full items-center justify-between rounded-xl p-4 text-left transition-colors ${
-                    index === 0 ? 'border-2 border-primary bg-surface-container-low' : 'border border-outline-variant bg-surface-container-lowest hover:border-primary/50'
-                  }`}
-                >
-                  <div>
-                    <span className="block font-body-md text-body-md font-bold">{font}</span>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant">
-                      {index === 0 ? '系统默认，阅读体验最佳' : index === 1 ? '优雅衬线，适合沉浸式阅读' : '等宽字体，适合记录代码段'}
-                    </span>
-                  </div>
-                  {index === 0 ? <CheckCircle2 className="size-5 shrink-0 text-primary" /> : null}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="font-label-md text-label-md font-bold uppercase tracking-wider text-on-surface-variant">字体大小</h4>
-              <div className="flex h-[calc(100%-36px)] flex-col justify-center rounded-xl border border-outline-variant/40 bg-surface-container-low p-6">
-                <div className="mb-8 flex items-center justify-between">
-                  <span className="text-[12px] text-on-surface-variant">A</span>
-                  <input
-                    value={fontSize}
-                    onChange={(event) => onFontSizeChange(Number(event.target.value))}
-                    className="mx-6 flex-1 cursor-pointer accent-primary"
-                    max={24}
-                    min={12}
-                    type="range"
-                  />
-                  <span className="text-[24px] text-on-surface-variant">A</span>
-                </div>
-                <div className="rounded-lg border border-outline-variant/30 bg-surface-bright p-4 text-center">
-                  <p style={{ fontSize }} className="text-on-surface">这是 {fontSize}px 大小的预览文本</p>
-                </div>
-                <p className="mt-4 text-center font-label-sm text-label-sm italic text-on-surface-variant">滑动调整，找到最舒适的字号</p>
-              </div>
-            </div>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
-                <Sparkles className="size-5" />
-              </div>
-              <div>
-                <h4 className="font-body-lg text-body-lg font-bold text-on-surface">磨砂玻璃特效 (Glassmorphism)</h4>
-                <p className="font-label-md text-label-md text-on-surface-variant">启用后侧边栏将呈现半透明模糊效果</p>
-              </div>
-            </div>
-            <Toggle checked={glassEnabled} onToggle={onGlassToggle} />
-          </div>
-        </SettingsCard>
-
-        <div className="flex justify-end gap-4">
-          <button type="button" className="rounded-full px-6 py-2.5 font-label-md text-label-md font-medium text-on-surface-variant transition-colors hover:bg-surface-container-high">恢复默认</button>
-          <button type="button" className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary shadow-sm transition-all hover:opacity-90 active:scale-95">保存更改</button>
-        </div>
-      </div>
-    </div>
-  )
+  if (score <= 1) {
+    return { label: '弱', className: 'text-error' }
+  }
+  if (score === 2) {
+    return { label: '中', className: 'text-tertiary' }
+  }
+  return { label: '强', className: 'text-primary' }
 }
 
-function SecuritySettings({ twoFactorEnabled, onTwoFactorToggle }: { twoFactorEnabled: boolean; onTwoFactorToggle: () => void }) {
+function SecuritySettings() {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [errors, setErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({})
+  const [status, setStatus] = useState<string | null>(null)
+  const passwordStrength = getPasswordStrength(newPassword)
+  const canSubmitPassword =
+    Boolean(currentPassword) &&
+    newPassword.length >= 8 &&
+    /[A-Za-z]/.test(newPassword) &&
+    /\d/.test(newPassword) &&
+    newPassword !== currentPassword &&
+    confirmPassword === newPassword
+
+  function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nextErrors: typeof errors = {}
+
+    if (!currentPassword) {
+      nextErrors.currentPassword = '请输入当前密码'
+    }
+
+    if (!newPassword) {
+      nextErrors.newPassword = '请输入新密码'
+    } else if (newPassword.length < 8) {
+      nextErrors.newPassword = '新密码至少需要 8 位'
+    } else if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      nextErrors.newPassword = '新密码需同时包含字母和数字'
+    } else if (newPassword === currentPassword) {
+      nextErrors.newPassword = '新密码不能与当前密码相同'
+    }
+
+    if (!confirmPassword) {
+      nextErrors.confirmPassword = '请再次输入新密码'
+    } else if (confirmPassword !== newPassword) {
+      nextErrors.confirmPassword = '两次输入的新密码不一致'
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
+      setStatus(null)
+      return
+    }
+
+    setErrors({})
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setStatus('认证服务尚未接入，当前仅完成前端校验，密码未修改')
+  }
+
+  function updatePasswordField(field: 'currentPassword' | 'newPassword' | 'confirmPassword', value: string) {
+    if (field === 'currentPassword') setCurrentPassword(value)
+    if (field === 'newPassword') setNewPassword(value)
+    if (field === 'confirmPassword') setConfirmPassword(value)
+    setErrors((current) => ({ ...current, [field]: undefined }))
+    setStatus(null)
+  }
+
   return (
     <div>
       <div className="space-y-6">
         <SettingsCard>
           <SectionTitle icon={Lock}>修改密码</SectionTitle>
-          <div className="grid grid-cols-1 gap-6">
-            <label>
-              <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">当前密码</span>
-              <input className="w-full border-0 border-b border-outline-variant bg-transparent px-1 py-2 font-body-md text-body-md focus:border-primary focus:outline-none" placeholder="输入当前密码" type="password" />
-            </label>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <form onSubmit={handlePasswordSubmit} noValidate>
+            <div className="grid grid-cols-1 gap-6">
               <label>
-                <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">新密码</span>
-                <input className="w-full border-0 border-b border-outline-variant bg-transparent px-1 py-2 font-body-md text-body-md focus:border-primary focus:outline-none" placeholder="输入新密码" type="password" />
+                <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">当前密码</span>
+                <input
+                  value={currentPassword}
+                  onChange={(event) => updatePasswordField('currentPassword', event.target.value)}
+                  className={`w-full border-0 border-b bg-transparent px-1 py-2 font-body-md text-body-md focus:outline-none ${errors.currentPassword ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                  placeholder="输入当前密码"
+                  type="password"
+                  autoComplete="current-password"
+                />
+                {errors.currentPassword ? <span className="mt-1 block font-label-sm text-label-sm text-error">{errors.currentPassword}</span> : null}
               </label>
-              <label>
-                <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">确认新密码</span>
-                <input className="w-full border-0 border-b border-outline-variant bg-transparent px-1 py-2 font-body-md text-body-md focus:border-primary focus:outline-none" placeholder="再次输入新密码" type="password" />
-              </label>
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end">
-            <button type="button" className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary transition-opacity hover:opacity-90">更新密码</button>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary-container text-on-secondary-container">
-                <Shield className="size-5" />
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <label>
+                  <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">新密码</span>
+                  <input
+                    value={newPassword}
+                    onChange={(event) => updatePasswordField('newPassword', event.target.value)}
+                    aria-invalid={Boolean(errors.newPassword)}
+                    aria-describedby="new-password-feedback"
+                    className={`w-full border-0 border-b bg-transparent px-1 py-2 font-body-md text-body-md focus:outline-none ${errors.newPassword ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    placeholder="至少 8 位，包含字母和数字"
+                    type="password"
+                    autoComplete="new-password"
+                  />
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    {errors.newPassword ? <span className="font-label-sm text-label-sm text-error">{errors.newPassword}</span> : <span className="font-label-sm text-label-sm text-on-surface-variant">建议使用字母、数字和符号组合</span>}
+                    <span className={`shrink-0 font-label-sm text-label-sm ${passwordStrength.className}`}>强度：{passwordStrength.label}</span>
+                  </div>
+                </label>
+                <label>
+                  <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">确认新密码</span>
+                  <input
+                    value={confirmPassword}
+                    onChange={(event) => updatePasswordField('confirmPassword', event.target.value)}
+                    className={`w-full border-0 border-b bg-transparent px-1 py-2 font-body-md text-body-md focus:outline-none ${errors.confirmPassword ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
+                    placeholder="再次输入新密码"
+                    type="password"
+                    autoComplete="new-password"
+                  />
+                  {errors.confirmPassword ? <span className="mt-1 block font-label-sm text-label-sm text-error">{errors.confirmPassword}</span> : null}
+                </label>
               </div>
-              <div>
-                <h3 className="font-headline-sm text-headline-sm text-on-surface">双重验证</h3>
-                <p className="mt-1 font-body-md text-body-md text-on-surface-variant">开启后，登录时将需要额外验证码以保护账户安全。</p>
-              </div>
             </div>
-            <Toggle checked={twoFactorEnabled} onToggle={onTwoFactorToggle} />
-          </div>
+            <div className="mt-6 flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-end">
+              {status ? <p className="font-label-md text-label-md text-on-surface-variant" role="status">{status}</p> : null}
+              <button
+                type="submit"
+                aria-disabled={!canSubmitPassword}
+                className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary transition-opacity hover:opacity-90 aria-disabled:opacity-60"
+              >
+                更新密码
+              </button>
+            </div>
+          </form>
         </SettingsCard>
 
         <SettingsCard>
           <SectionTitle icon={Monitor} tone="tertiary">登录活动</SectionTitle>
+          <p className="mb-4 rounded-xl bg-surface-container-low px-4 py-3 font-label-md text-label-md text-on-surface-variant">
+            当前为演示数据，真实设备与会话记录需要接入账号后端后才会显示。
+          </p>
           <div className="space-y-4">
             {[
               { icon: Laptop, title: 'MacBook Pro · 上海, 中国', description: 'Chrome 浏览器 · 正在活跃', current: true },
@@ -395,13 +454,22 @@ function SecuritySettings({ twoFactorEnabled, onTwoFactorToggle }: { twoFactorEn
                   {device.current ? (
                     <span className="rounded-full bg-primary-fixed px-3 py-1 font-label-sm text-label-sm font-bold text-primary">当前设备</span>
                   ) : (
-                    <button type="button" className="font-label-sm text-label-sm text-error opacity-0 transition-opacity group-hover:opacity-100">注销</button>
+                    <button type="button" disabled title="需要接入会话服务" className="cursor-not-allowed font-label-sm text-label-sm text-error/50">
+                      注销
+                    </button>
                   )}
                 </div>
               )
             })}
           </div>
-          <button type="button" className="mt-6 w-full rounded-lg py-2 font-label-md text-label-md font-medium text-primary transition-colors hover:bg-primary-fixed">退出所有其他会话</button>
+          <button
+            type="button"
+            disabled
+            title="需要接入会话服务"
+            className="mt-6 w-full cursor-not-allowed rounded-lg py-2 font-label-md text-label-md font-medium text-primary/50"
+          >
+            退出所有其他会话（待接入）
+          </button>
         </SettingsCard>
 
         <SettingsCard className="border-error/20 bg-error-container/20">
@@ -412,13 +480,53 @@ function SecuritySettings({ twoFactorEnabled, onTwoFactorToggle }: { twoFactorEn
               </div>
               <div>
                 <h3 className="font-headline-sm text-headline-sm text-error">注销账户</h3>
-                <p className="mt-1 max-w-md font-body-md text-body-md text-on-surface-variant">永久删除您的账户及所有相关笔记、媒体文件。此操作不可撤销，请谨慎操作。</p>
+                <p className="mt-1 max-w-md font-body-md text-body-md text-on-surface-variant">永久删除账户需要身份复核和后端数据清理，当前仅保留入口。</p>
               </div>
             </div>
-            <button type="button" className="shrink-0 rounded-full border border-error px-6 py-2.5 font-label-md text-label-md text-error transition-all hover:bg-error hover:text-white">删除账户</button>
+            <button
+              type="button"
+              disabled
+              title="需要接入账号服务"
+              className="shrink-0 cursor-not-allowed rounded-full border border-error/40 px-6 py-2.5 font-label-md text-label-md text-error/50"
+            >
+              删除账户（待接入）
+            </button>
           </div>
         </SettingsCard>
       </div>
     </div>
   )
+}
+
+function compressImageToDataUrl(file: File, maxSize = 256) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('invalid-image'))
+        return
+      }
+
+      const image = new Image()
+      image.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height))
+        const width = Math.max(1, Math.round(image.width * scale))
+        const height = Math.max(1, Math.round(image.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const context = canvas.getContext('2d')
+        if (!context) {
+          reject(new Error('canvas-unavailable'))
+          return
+        }
+        context.drawImage(image, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      image.onerror = () => reject(new Error('image-load-failed'))
+      image.src = reader.result
+    }
+    reader.onerror = () => reject(new Error('file-read-failed'))
+    reader.readAsDataURL(file)
+  })
 }

@@ -1,4 +1,4 @@
-import { CheckSquare, Copy, FolderInput, ImageOff, ImagePlus, Star, Trash2 } from 'lucide-react'
+import { CheckSquare, Copy, FolderInput, ImageOff, ImagePlus, Pin, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { Note } from '../../../shared/types/note'
 import { formatUpdatedAt } from '../../../shared/notes/noteSelectors'
@@ -13,6 +13,7 @@ interface NoteCardProps {
   query?: string
   onSelect?: (noteId: string) => void
   onToggleFavorite?: (noteId: string) => void
+  onTogglePinned?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicate?: (noteId: string) => void
@@ -30,6 +31,7 @@ export function NoteCard({
   query,
   onSelect,
   onToggleFavorite,
+  onTogglePinned,
   onMoveToTrash,
   onRequestMoveToFolder,
   onDuplicate,
@@ -72,6 +74,7 @@ export function NoteCard({
       open={menuOpen}
       onToggle={setMenuOpen}
       onToggleFavorite={onToggleFavorite}
+      onTogglePinned={onTogglePinned}
       onMoveToTrash={onMoveToTrash}
       onRequestMoveToFolder={onRequestMoveToFolder}
       onDuplicate={onDuplicate}
@@ -138,6 +141,7 @@ function CardMoreControl({
   open,
   onToggle,
   onToggleFavorite,
+  onTogglePinned,
   onMoveToTrash,
   onRequestMoveToFolder,
   onDuplicate,
@@ -149,6 +153,7 @@ function CardMoreControl({
   open: boolean
   onToggle: (open: boolean) => void
   onToggleFavorite?: (noteId: string) => void
+  onTogglePinned?: (noteId: string) => void
   onMoveToTrash?: (noteId: string) => void
   onRequestMoveToFolder?: (noteId: string) => void
   onDuplicate?: (noteId: string) => void
@@ -166,6 +171,13 @@ function CardMoreControl({
       iconFill: note.isFavorite ? 'currentColor' : 'none',
       hidden: !onToggleFavorite,
       onSelect: () => onToggleFavorite?.(note.id),
+    },
+    {
+      key: 'pin',
+      label: note.pinned ? '取消置顶' : '置顶笔记',
+      icon: Pin,
+      hidden: !onTogglePinned,
+      onSelect: () => onTogglePinned?.(note.id),
     },
     {
       key: 'cover-set',

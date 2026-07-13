@@ -30,6 +30,7 @@ import { InsertPopover } from './InsertPopover'
 interface EditorToolbarProps {
   editor: Editor | null
   className?: string
+  readOnly?: boolean
 }
 
 
@@ -184,7 +185,7 @@ function ColorPopover({
   )
 }
 
-export function EditorToolbar({ editor, className = '' }: EditorToolbarProps) {
+export function EditorToolbar({ editor, className = '', readOnly = false }: EditorToolbarProps) {
   useEditorState(editor)
 
   if (!editor) {
@@ -202,40 +203,40 @@ export function EditorToolbar({ editor, className = '' }: EditorToolbarProps) {
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 border-b border-outline-variant/30 bg-surface-container-lowest px-gutter py-2 ${className}`}>
-      <ToolButton icon={Undo2} label="撤销" disabled={!editor.can().undo()} onClick={() => e.chain().focus().undo().run()} />
-      <ToolButton icon={Redo2} label="重做" disabled={!editor.can().redo()} onClick={() => e.chain().focus().redo().run()} />
+    <div className={`flex flex-wrap items-center gap-1 border-b border-outline-variant/30 bg-surface-container-lowest px-gutter py-2 ${className} ${readOnly ? 'pointer-events-none opacity-40' : ''}`}>
+      <ToolButton icon={Undo2} label="撤销" disabled={readOnly || !editor.can().undo()} onClick={() => e.chain().focus().undo().run()} />
+      <ToolButton icon={Redo2} label="重做" disabled={readOnly || !editor.can().redo()} onClick={() => e.chain().focus().redo().run()} />
 
       <Divider />
 
-      <ToolButton icon={Bold} label="粗体" active={editor.isActive('bold')} onClick={() => e.chain().focus().toggleBold().run()} />
-      <ToolButton icon={Italic} label="斜体" active={editor.isActive('italic')} onClick={() => e.chain().focus().toggleItalic().run()} />
-      <ToolButton icon={Underline} label="下划线" active={editor.isActive('underline')} onClick={() => e.chain().focus().toggleUnderline().run()} />
-      <ToolButton icon={Strikethrough} label="删除线" active={editor.isActive('strike')} onClick={() => e.chain().focus().toggleStrike().run()} />
-      <ToolButton icon={Code} label="行内代码" active={editor.isActive('code')} onClick={() => e.chain().focus().toggleCode().run()} />
+      <ToolButton icon={Bold} label="粗体" active={editor.isActive('bold')} disabled={readOnly} onClick={() => e.chain().focus().toggleBold().run()} />
+      <ToolButton icon={Italic} label="斜体" active={editor.isActive('italic')} disabled={readOnly} onClick={() => e.chain().focus().toggleItalic().run()} />
+      <ToolButton icon={Underline} label="下划线" active={editor.isActive('underline')} disabled={readOnly} onClick={() => e.chain().focus().toggleUnderline().run()} />
+      <ToolButton icon={Strikethrough} label="删除线" active={editor.isActive('strike')} disabled={readOnly} onClick={() => e.chain().focus().toggleStrike().run()} />
+      <ToolButton icon={Code} label="行内代码" active={editor.isActive('code')} disabled={readOnly} onClick={() => e.chain().focus().toggleCode().run()} />
 
       <Divider />
 
-      <ToolButton icon={Heading1} label="标题 1" active={editor.isActive('heading', { level: 1 })} onClick={() => e.chain().focus().toggleHeading({ level: 1 }).run()} />
-      <ToolButton icon={Heading2} label="标题 2" active={editor.isActive('heading', { level: 2 })} onClick={() => e.chain().focus().toggleHeading({ level: 2 }).run()} />
+      <ToolButton icon={Heading1} label="标题 1" active={editor.isActive('heading', { level: 1 })} disabled={readOnly} onClick={() => e.chain().focus().toggleHeading({ level: 1 }).run()} />
+      <ToolButton icon={Heading2} label="标题 2" active={editor.isActive('heading', { level: 2 })} disabled={readOnly} onClick={() => e.chain().focus().toggleHeading({ level: 2 }).run()} />
 
       <Divider />
 
-      <ToolButton icon={List} label="无序列表" active={editor.isActive('bulletList')} onClick={() => e.chain().focus().toggleBulletList().run()} />
-      <ToolButton icon={ListOrdered} label="有序列表" active={editor.isActive('orderedList')} onClick={() => e.chain().focus().toggleOrderedList().run()} />
-      <ToolButton icon={CheckSquare} label="任务清单" active={editor.isActive('taskList')} onClick={() => e.chain().focus().toggleTaskList().run()} />
+      <ToolButton icon={List} label="无序列表" active={editor.isActive('bulletList')} disabled={readOnly} onClick={() => e.chain().focus().toggleBulletList().run()} />
+      <ToolButton icon={ListOrdered} label="有序列表" active={editor.isActive('orderedList')} disabled={readOnly} onClick={() => e.chain().focus().toggleOrderedList().run()} />
+      <ToolButton icon={CheckSquare} label="任务清单" active={editor.isActive('taskList')} disabled={readOnly} onClick={() => e.chain().focus().toggleTaskList().run()} />
 
       <Divider />
 
-      <ToolButton icon={Quote} label="引用" active={editor.isActive('blockquote')} onClick={() => e.chain().focus().toggleBlockquote().run()} />
-      <ToolButton icon={Code2} label="代码块" active={editor.isActive('codeBlock')} onClick={() => e.chain().focus().toggleCodeBlock().run()} />
-      <ToolButton icon={Minus} label="分割线" onClick={() => e.chain().focus().setHorizontalRule().run()} />
+      <ToolButton icon={Quote} label="引用" active={editor.isActive('blockquote')} disabled={readOnly} onClick={() => e.chain().focus().toggleBlockquote().run()} />
+      <ToolButton icon={Code2} label="代码块" active={editor.isActive('codeBlock')} disabled={readOnly} onClick={() => e.chain().focus().toggleCodeBlock().run()} />
+      <ToolButton icon={Minus} label="分割线" disabled={readOnly} onClick={() => e.chain().focus().setHorizontalRule().run()} />
 
       <Divider />
 
-      <ToolButton icon={AlignLeft} label="左对齐" active={editor.isActive({ textAlign: 'left' })} onClick={() => e.chain().focus().setTextAlign('left').run()} />
-      <ToolButton icon={AlignCenter} label="居中" active={editor.isActive({ textAlign: 'center' })} onClick={() => e.chain().focus().setTextAlign('center').run()} />
-      <ToolButton icon={AlignRight} label="右对齐" active={editor.isActive({ textAlign: 'right' })} onClick={() => e.chain().focus().setTextAlign('right').run()} />
+      <ToolButton icon={AlignLeft} label="左对齐" active={editor.isActive({ textAlign: 'left' })} disabled={readOnly} onClick={() => e.chain().focus().setTextAlign('left').run()} />
+      <ToolButton icon={AlignCenter} label="居中" active={editor.isActive({ textAlign: 'center' })} disabled={readOnly} onClick={() => e.chain().focus().setTextAlign('center').run()} />
+      <ToolButton icon={AlignRight} label="右对齐" active={editor.isActive({ textAlign: 'right' })} disabled={readOnly} onClick={() => e.chain().focus().setTextAlign('right').run()} />
 
       <Divider />
 
@@ -270,8 +271,8 @@ export function EditorToolbar({ editor, className = '' }: EditorToolbarProps) {
 
       <InsertPopover editor={e} type="link" />
       <InsertPopover editor={e} type="image" />
-      <ToolButton icon={TableIcon} label="表格" onClick={insertTable} />
-      <ToolButton icon={Sigma} label="数学公式" onClick={insertMath} />
+      <ToolButton icon={TableIcon} label="表格" disabled={readOnly} onClick={insertTable} />
+      <ToolButton icon={Sigma} label="数学公式" disabled={readOnly} onClick={insertMath} />
       <InsertPopover editor={e} type="video" />
     </div>
   )

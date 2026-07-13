@@ -1,5 +1,5 @@
 import { AlertCircle } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
+import { useId, type ComponentType, type ReactNode } from 'react'
 
 interface AuthInputProps {
   label: string
@@ -26,6 +26,8 @@ export function AuthInput({
   disabled = false,
   autoComplete,
 }: AuthInputProps) {
+  const errorId = useId()
+
   return (
     <label className="block">
       <span className="sr-only">{label}</span>
@@ -48,11 +50,12 @@ export function AuthInput({
           disabled={disabled}
           autoComplete={autoComplete}
           aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
         />
         {error && !rightAction ? <AlertCircle className="absolute right-4 size-5 text-error" /> : null}
         {rightAction ? <div className="absolute right-3 flex items-center">{rightAction}</div> : null}
       </div>
-      {error ? <span className="mt-2 block px-2 font-label-sm text-label-sm text-error">{error}</span> : null}
+      {error ? <span id={errorId} className="mt-2 block px-2 font-label-sm text-label-sm text-error">{error}</span> : null}
     </label>
   )
 }

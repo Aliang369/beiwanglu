@@ -1,13 +1,34 @@
 import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, MessageCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { AuthInput } from './AuthInput'
 import { CodeLoginView } from './CodeLoginView'
 
+export interface MockUserAccount {
+  account: string
+  name: string
+  email: string
+  bio: string
+  avatarUrl: string | null
+}
+
 interface LoginViewProps {
   onSwitchToRegister: () => void
   onForgotPassword: () => void
-  onAuthenticated: () => void
+  onAuthenticated: (account: MockUserAccount) => void
+}
+
+function createMockUserAccount(account: string): MockUserAccount {
+  const value = account.trim()
+  const isEmail = value.includes('@')
+
+  return {
+    account: value,
+    name: isEmail ? value.split('@')[0] : value,
+    email: isEmail ? value : `${value}@example.com`,
+    bio: '',
+    avatarUrl: null,
+  }
 }
 
 interface LoginErrors {
@@ -22,6 +43,15 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<LoginErrors>({})
+  const submitTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current !== null) {
+        window.clearTimeout(submitTimeoutRef.current)
+      }
+    }
+  }, [])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -45,9 +75,10 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
 
     setErrors({})
     setIsSubmitting(true)
-    window.setTimeout(() => {
+    submitTimeoutRef.current = window.setTimeout(() => {
+      submitTimeoutRef.current = null
       setIsSubmitting(false)
-      onAuthenticated()
+      onAuthenticated(createMockUserAccount(account))
     }, 450)
   }
 
