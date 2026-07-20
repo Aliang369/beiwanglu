@@ -199,3 +199,18 @@ kilo.json
 - 如果团队继续使用 Kilo/Trae：保留 `.trae/skills/` 和 `kilo.json`，并在调整设计工作流时同步维护。
 - 如果团队只关注应用源码：可以暂时不处理这些文件，只保留 README 和本文档说明其用途。
 - 如果后续迁移到其他 AI/设计工具：先确认这些 skills 是否仍有价值，再决定迁移或删除。
+
+## 与 Obsidian 知识库的关系
+
+项目配套一个 Obsidian 知识库，路径：
+
+```text
+/Users/aliang/Documents/Obsidian Vault/beiwanglu/
+```
+
+知识库是项目长期外部记忆层（决策、规范、踩坑、架构演进）；`.trae/skills/` 是 AI 工具侧配置（设计、品牌、UI 创作场景）。两者不冲突，定位不同：
+
+- `.trae/skills/` 服务于 AI 辅助创作工作流
+- Obsidian 知识库服务于项目认知与决策沉淀
+
+知识库中的 `[[Trae-Skills配置说明]]` 笔记与本文件内容对应。

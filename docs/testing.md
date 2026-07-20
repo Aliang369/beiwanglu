@@ -38,6 +38,9 @@ src/shared/notes/noteDomain.ts
 src/shared/notes/noteSelectors.ts
 ```
 
+- `src/shared/notes/folderDomain.ts`（文件夹移动校验、重名检测、normalize）
+- `src/shared/notes/searchHistory.ts`（搜索历史持久化、上限 8 条）
+
 测试重点：
 
 - `createExcerpt` 是否正确处理空白和长度。
@@ -47,6 +50,8 @@ src/shared/notes/noteSelectors.ts
 - `getVisibleNotes` 是否正确处理视图、搜索、标签过滤。
 - `getAllTags` 是否去重。
 - `firstVisibleNoteId` 是否符合当前视图。
+- `canMoveFolder` / `hasFolderNameConflict` / `assertValidParentId` 校验逻辑。
+- `pushSearchHistory` 是否正确去重和限制条数。
 
 推荐工具：
 
@@ -73,6 +78,33 @@ src/shared/data/webNotesRepository.ts
 
 Repository 测试需要 mock `localStorage` 和 `crypto.randomUUID()`。
 
+- `src/shared/data/snapshotsRepository.ts` 测试重点：
+  - 双重保留策略（数量上限 20 + TTL 7 天）。
+  - `add()` 自动 trim。
+  - `deleteByNote()` 级联清理。
+  - localStorage key `beiwanglu.snapshots.v1`。
+- `src/shared/data/apiNotesRepository.ts` 测试重点（已实现未接入）：
+  - 8 方法（list / listFolders / create / createFolder / update / updateFolder / delete / deleteFolders）。
+  - mock fetch 验证请求路径和 body。
+
+### 6. 导出测试
+
+建议覆盖：
+
+```text
+src/shared/notes/noteExport.ts
+```
+
+测试重点：
+
+- `exportNoteToPng` 生成 PNG 文件。
+- `exportNoteToPdf` 生成 PDF 文件。
+- `exportNoteToDocx` 生成 Word 文件。
+- `sanitizeFileName` 去除非法字符。
+- ProseMirror doc JSON → docx 转换正确性。
+
+导出测试可能需要 mock html2canvas-pro / jsPDF / docx 库。
+
 ### 3. Store 测试
 
 建议覆盖：
@@ -90,6 +122,16 @@ src/shared/store/notesStore.ts
 - `setView()` 切换视图并更新选中项。
 
 Store 测试可以通过注入 fake repository 完成。
+
+- `src/shared/store/authStore.ts` 测试重点：
+  - `hydrate()` 从 localStorage 恢复 token/user。
+  - `login()` / `register()` / `loginByCode()` / `resetPassword()` 流程。
+  - `logout()` 清理 token/user。
+  - `setSession()` / `clearSession()` 状态切换。
+- `src/shared/store/messagesStore.ts` 测试重点：
+  - guest Mock 与登录后 messagesApi 切换。
+  - 未读数计算。
+  - 标已读。
 
 ### 4. 组件测试
 
@@ -148,7 +190,7 @@ Playwright
 
 - 安装 Vitest。
 - 新增 `npm test`。
-- 覆盖 `noteDomain.ts` 和 `noteSelectors.ts`。
+- 覆盖 `noteDomain.ts`、`noteSelectors.ts`、`folderDomain.ts`。
 
 ### 第二阶段
 

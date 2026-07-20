@@ -14,6 +14,14 @@ src-tauri/target
 .trae
 *.local
 
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# AI 工具缓存
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

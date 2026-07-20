@@ -110,6 +110,18 @@ Noto Sans SC, Inter, system-ui, sans-serif
 | `stack-sm` | 8px | 小间距。 |
 | `stack-md` | 16px | 中间距。 |
 | `stack-lg` | 32px | 大间距。 |
+| `note-card` | 224px | 小卡片固定高度。 |
+| `note-card-featured` | 472px | 特色卡固定高度（= 2×224 + 24 gap）。 |
+| `note-card-cover` | 96px | 封面小卡封面区高度。 |
+| `note-card-cover-featured` | 192px | 封面特色卡封面区高度。 |
+
+## Grid 行高 token
+
+| Token | 值 | 用途 |
+| --- | --- | --- |
+| `gridAutoRows.note-card` | `224px` | 笔记卡片网格行高，配合 `auto-rows-note-card` 使用。 |
+
+CSS Grid 的 `auto-rows` 必须显式配置 token，否则会出现行高塌陷。Grid 容器使用 `auto-rows-note-card gap-6`，特色卡通过 `row-span-2` 跨两行（高度 472px = 2×224 + 24 gap）。
 
 ## 圆角
 
@@ -172,6 +184,18 @@ md:ml-sidebar-width
 - 使用 `border-outline-variant/30` 一类低对比边框。
 - 使用 `rounded-2xl` 或 `rounded-3xl`。
 - 需要强调时使用 `shadow-card`。
+
+卡片硬约束（必须遵守）：
+
+- 小卡片固定高度 224px，特色卡固定高度 472px（即使没有相邻小卡）。
+- 所有笔记卡片小卡和非封面特色卡必须使用渐变背景 `from-surface-container-lowest to-surface-container-low`。
+- 非封面特色卡不得有占位封面区域（直接文字展示 + 半圆装饰）。
+- 收藏页卡片只保留右上角 star 图标（`absolute top-3 right-3`），其他菜单操作按钮排除。
+- 标签必须有 `border border-white/50`，定位相对于外层 article 容器（大卡 24px，小卡 20px）。
+- 回收站网格卡不显示图片片段占位符，全部用纯文本摘要；操作按钮用 32px 圆形图标（蓝色恢复，红色删除），无文字无 tooltip。
+- 摘要长度上限 480 字符；line clamp 规则：有封面特色卡 5 行、无封面特色卡 10 行、无封面小卡 2 行。
+- Grid 容器配置：`auto-rows-note-card gap-6`。
+- 置顶笔记优先显示，列表视图标题前显示 Pin 图标（`gap-1.5` 间距）。
 
 ### 弹窗
 

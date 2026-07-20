@@ -164,3 +164,15 @@ npm run tauri:build
 | Web 预览 | `npm run preview` | 本地预览构建产物。 |
 | 桌面开发 | `npm run tauri:dev` | 打开 Tauri 桌面窗口加载 Vite。 |
 | 桌面打包 | `npm run tauri:build` | 生成桌面应用包。 |
+
+## 与 Obsidian 知识库的关系
+
+项目配套一个 Obsidian 知识库，路径：
+
+```text
+/Users/aliang/Documents/Obsidian Vault/beiwanglu/
+```
+
+知识库是项目长期外部记忆层，存储决策、规范、踩坑、架构演进等结构化内容；本 `docs/` 面向开发者代码层参考。两者内容应保持一致，知识库为真实源。
+
+知识库中的 `[[Tauri桌面端配置]]` 笔记与本文件内容对应，详细程度更高。Tauri 相关变更应同步更新两处。

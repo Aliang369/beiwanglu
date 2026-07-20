@@ -118,19 +118,33 @@ npm run tauri:build
 
 ## 本地数据重置
 
-Web 端笔记数据存储在浏览器 `localStorage`：
+Web 端数据存储在浏览器 `localStorage`，主要 key：
 
-```text
-beiwanglu.notes.v1
-```
+- `beiwanglu.notes.v4`（笔记 + 文件夹主存储，兼容 v1/v2/v3 迁移）
+- `beiwanglu.notes.v1`（旧版镜像，兼容读取）
+- `beiwanglu.snapshots.v1`（版本快照）
+- `beiwanglu.searchHistory.v1`（搜索历史）
+- `beiwanglu.auth.accessToken`（JWT token）
+- `beiwanglu.auth.user`（用户信息缓存）
 
 需要重置示例数据时，在浏览器开发者工具控制台执行：
 
 ```js
-localStorage.removeItem('beiwanglu.notes.v1')
+localStorage.removeItem('beiwanglu.notes.v4')
 ```
 
-然后刷新页面，应用会重新写入 `src/shared/data/mockNotes.ts` 中的 mock 数据。
+然后刷新页面，应用会重新写入 mock 数据。
+
+如需彻底清空所有本地数据：
+
+```js
+localStorage.removeItem('beiwanglu.notes.v4')
+localStorage.removeItem('beiwanglu.notes.v1')
+localStorage.removeItem('beiwanglu.snapshots.v1')
+localStorage.removeItem('beiwanglu.searchHistory.v1')
+localStorage.removeItem('beiwanglu.auth.accessToken')
+localStorage.removeItem('beiwanglu.auth.user')
+```
 
 ## 质量检查
 
@@ -143,10 +157,13 @@ npm run build
 
 当前项目尚未配置自动化测试脚本。如果引入测试，建议优先覆盖：
 
-- `src/shared/notes/noteDomain.ts`
-- `src/shared/notes/noteSelectors.ts`
-- `src/shared/data/webNotesRepository.ts`
-- 创建、编辑、收藏、搜索、移入回收站等核心交互。
+- `src/shared/notes/noteDomain.ts`（摘要生成、排序、废纸篓保留期）
+- `src/shared/notes/noteSelectors.ts`（搜索匹配、标签聚合）
+- `src/shared/notes/folderDomain.ts`（文件夹移动校验、重名检测）
+- `src/shared/data/webNotesRepository.ts`（v1→v4 迁移、CRUD）
+- `src/shared/data/snapshotsRepository.ts`（双重保留策略 trim）
+- `src/shared/notes/noteExport.ts`（三格式导出）
+- 创建、编辑、收藏、搜索、置顶、只读、封面、移入回收站等核心交互。
 
 ## 常见问题
 
@@ -173,6 +190,12 @@ npm run build
 
 `index.html` 当前加载 Google Fonts。网络受限时，字体可能回退到系统字体，但通常不影响应用功能。若需要离线或内网可用，可以后续改成本地字体资源。
 
-### 账号、消息、导出、历史功能没有真实效果
+### 账号、消息、导出、历史功能说明
 
-这些模块当前属于前端原型或 mock 数据驱动功能。具体状态见 [`feature-status.md`](feature-status.md)。
+账号、消息、导出、版本历史等功能均已通过 Mock 或本地实现可用：
+
+- 账号/消息：Mock/Real 双模式，当前默认 Mock 接通，可正常使用 UI 流程
+- 导出：已实现 PNG 长图 / PDF / Word(.docx) 三格式真实文件下载
+- 版本历史：已实现基于快照系统的真实版本管理（20 条 + 7 天 TTL）
+
+待真实后端就绪后，切换 `VITE_API_MODE=real` 即可对接。具体状态见 [`feature-status.md`](feature-status.md)。
