@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+develop-eggs/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 环境
+.env
+.env.local
+.env.*.local
+
+# 日志
+*.log
+logs/
+
+# 上传文件
+uploads/
+
+# Alembic 缓存
+alembic/__pycache__/
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 类型检查
+.mypy_cache/
+.ruff_cache/
