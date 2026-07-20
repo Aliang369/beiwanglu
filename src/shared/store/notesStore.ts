@@ -1,6 +1,8 @@
 // 改动：updateSelectedNote / updateNote 支持 cover；duplicateNote 复制 cover；新增版本快照能力
+// 改动：快照仓储抽象，登录态切换本地/云端，与 NotesRepository 模式一致
 import { create } from 'zustand'
 import type { NotesRepository } from '../data/notesRepository'
+import type { SnapshotsRepository } from '../data/snapshotsRepository'
 import { webSnapshotsRepository } from '../data/snapshotsRepository'
 import {
   canMoveFolder,
@@ -47,11 +49,17 @@ export interface NotesState {
   setQuery: (query: string) => void
   setTagFilter: (tagId: string | null) => void
   /** 加载指定笔记的快照列表到 state。 */
-  loadSnapshots: (noteId: string) => void
+  loadSnapshots: (noteId: string) => Promise<void>
   /** 创建一条快照（标题默认"自动保存"）。返回最新快照列表。 */
-  createSnapshot: (noteId: string, content: string, noteTitle: string, title?: string) => Snapshot[]
+  createSnapshot: (noteId: string, content: string, noteTitle: string, title?: string) => Promise<Snapshot[]>
   /** 恢复到指定快照：先把当前内容存为"恢复前自动保存"快照，再覆盖笔记内容。 */
   restoreSnapshot: (noteId: string, snapshotId: string) => Promise<void>
+  /** 切换笔记底层仓储（登录态切换本地/云端时使用），并立即重新加载。 */
+  setRepository: (repository: NotesRepository) => Promise<void>
+  /** 切换快照底层仓储（登录态切换本地/云端时使用）。 */
+  setSnapshotsRepository: (repository: SnapshotsRepository) => void
+  isLoading: boolean
+  loadError: string | null
 }
 
 function replaceNote(notes: Note[], updated: Note) {
@@ -67,7 +75,10 @@ function buildDuplicateTitle(title: string) {
   return `${base} 副本`
 }
 
-export function createNotesStore(repository: NotesRepository) {
+export function createNotesStore(initialRepository: NotesRepository) {
+  let repository = initialRepository
+  let snapshotsRepository: SnapshotsRepository = webSnapshotsRepository
+
   return create<NotesState>((set, get) => ({
     notes: [],
     folders: [],
@@ -78,16 +89,47 @@ export function createNotesStore(repository: NotesRepository) {
       tagId: null,
     },
     isLoaded: false,
+    isLoading: false,
+    loadError: null,
     snapshots: {},
 
+    async setRepository(nextRepository) {
+      repository = nextRepository
+      set({
+        isLoaded: false,
+        isLoading: false,
+        loadError: null,
+        notes: [],
+        folders: [],
+        selectedNoteId: null,
+        snapshots: {},
+      })
+      await get().loadNotes()
+    },
+
+    setSnapshotsRepository(nextSnapshotsRepository) {
+      snapshotsRepository = nextSnapshotsRepository
+      set({ snapshots: {} })
+    },
+
     async loadNotes() {
-      const [notes, folders] = await Promise.all([repository.list(), repository.listFolders()])
-      set((state) => ({
-        notes,
-        folders: sortFoldersByName(folders),
-        selectedNoteId: state.selectedNoteId ?? firstVisibleNoteId(notes, state.filter.view),
-        isLoaded: true,
-      }))
+      set({ isLoading: true, loadError: null })
+      try {
+        const [notes, folders] = await Promise.all([repository.list(), repository.listFolders()])
+        set((state) => ({
+          notes,
+          folders: sortFoldersByName(folders),
+          selectedNoteId: state.selectedNoteId ?? firstVisibleNoteId(notes, state.filter.view),
+          isLoaded: true,
+          isLoading: false,
+          loadError: null,
+        }))
+      } catch (error) {
+        set({
+          isLoading: false,
+          loadError: error instanceof Error ? error.message : '笔记加载失败',
+        })
+      }
     },
 
     async createNote() {
@@ -210,7 +252,7 @@ export function createNotesStore(repository: NotesRepository) {
       }
 
       await repository.delete(noteId)
-      webSnapshotsRepository.deleteByNote(noteId)
+      await snapshotsRepository.deleteByNote(noteId)
       set((state) => {
         const notes = state.notes.filter((item) => item.id !== noteId)
         const selectedNoteId = state.selectedNoteId === noteId ? firstVisibleNoteId(notes, state.filter.view) : state.selectedNoteId
@@ -229,14 +271,19 @@ export function createNotesStore(repository: NotesRepository) {
       }
 
       await Promise.all(deletedNotes.map((note) => repository.delete(note.id)))
+      await Promise.all(deletedNotes.map((note) => snapshotsRepository.deleteByNote(note.id)))
       set((state) => {
         const deletedIds = new Set(deletedNotes.map((note) => note.id))
         const notes = state.notes.filter((item) => !deletedIds.has(item.id))
         const selectedNoteId = state.selectedNoteId && deletedIds.has(state.selectedNoteId)
           ? firstVisibleNoteId(notes, state.filter.view)
           : state.selectedNoteId
+        const snapshots = { ...state.snapshots }
+        for (const id of deletedIds) {
+          delete snapshots[id]
+        }
 
-        return { notes, selectedNoteId }
+        return { notes, selectedNoteId, snapshots }
       })
     },
 
@@ -343,8 +390,8 @@ export function createNotesStore(repository: NotesRepository) {
       set((state) => ({ filter: { ...state.filter, tagId } }))
     },
 
-    loadSnapshots(noteId) {
-      const list = webSnapshotsRepository.listByNote(noteId)
+    async loadSnapshots(noteId) {
+      const list = await snapshotsRepository.listByNote(noteId)
       set((state) => {
         const prev = state.snapshots[noteId]
         // 内容未变化时不更新 state，避免触发 re-render 循环
@@ -355,7 +402,7 @@ export function createNotesStore(repository: NotesRepository) {
       })
     },
 
-    createSnapshot(noteId, content, noteTitle, title = '自动保存') {
+    async createSnapshot(noteId, content, noteTitle, title = '自动保存') {
       const snapshot: Snapshot = {
         id: window.crypto.randomUUID(),
         noteId,
@@ -364,7 +411,7 @@ export function createNotesStore(repository: NotesRepository) {
         content,
         createdAt: new Date().toISOString(),
       }
-      const list = webSnapshotsRepository.add(snapshot)
+      const list = await snapshotsRepository.add(snapshot)
       set((state) => ({ snapshots: { ...state.snapshots, [noteId]: list } }))
       return list
     },
@@ -376,7 +423,7 @@ export function createNotesStore(repository: NotesRepository) {
         return
       }
       // 先把当前内容存为"恢复前自动保存"快照
-      get().createSnapshot(noteId, note.content, note.title, '恢复前自动保存')
+      await get().createSnapshot(noteId, note.content, note.title, '恢复前自动保存')
       // 再用快照内容覆盖笔记
       await get().updateNote(noteId, { content: target.content, title: target.noteTitle })
     },

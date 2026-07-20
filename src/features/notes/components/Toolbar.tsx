@@ -6,16 +6,15 @@ import {
   pushSearchHistory,
   removeSearchHistoryItem,
 } from '../../../shared/notes/searchHistory'
+import { useAuthStore } from '../../../shared/store/authStore'
+import { useMessagesStore } from '../../../shared/store/messagesStore'
+import type { MessageItem } from '../../../shared/types/message'
 import { NotificationDropdown } from './NotificationDropdown'
-import type { MockUserAccount } from '../../auth/LoginView'
-import { messageItems, type MessageItem } from './messageMockData'
 
 const SEARCH_DEBOUNCE_MS = 200
 
 interface ToolbarProps {
   query: string
-  isAuthenticated: boolean
-  account: MockUserAccount | null
   onQueryChange: (query: string) => void
   onRefresh?: () => void | Promise<void>
   onLoginClick?: () => void
@@ -26,9 +25,15 @@ interface ToolbarProps {
   onMessageOpen?: (message: MessageItem) => void
 }
 
-export function Toolbar({ query, isAuthenticated, account, onQueryChange, onRefresh, onLoginClick, onProfileClick, onAccountSettingsClick, onLogoutClick, onMessagesClick, onMessageOpen }: ToolbarProps) {
+export function Toolbar({ query, onQueryChange, onRefresh, onLoginClick, onProfileClick, onAccountSettingsClick, onLogoutClick, onMessagesClick, onMessageOpen }: ToolbarProps) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const account = useAuthStore((state) => state.user)
+  const messages = useMessagesStore((state) => state.items)
+  const unreadCount = useMessagesStore((state) => state.unreadCount)
+  const markAllRead = useMessagesStore((state) => state.markAllRead)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [notificationOpen, setNotificationOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(() => query.length > 0)
   const [draftQuery, setDraftQuery] = useState(query)
   const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
@@ -38,6 +43,7 @@ export function Toolbar({ query, isAuthenticated, account, onQueryChange, onRefr
   const desktopWrapRef = useRef<HTMLDivElement>(null)
   const mobileWrapRef = useRef<HTMLDivElement>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const notificationRef = useRef<HTMLDivElement>(null)
   const userMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const userMenuPopupRef = useRef<HTMLDivElement>(null)
   const userMenuInitialFocusRef = useRef<'first' | 'last'>('first')
@@ -411,19 +417,35 @@ export function Toolbar({ query, isAuthenticated, account, onQueryChange, onRefr
         >
           <RefreshCw className={`size-5 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
-        <div className="group relative">
+        <div ref={notificationRef} className="relative">
           <button
             type="button"
-            onClick={onMessagesClick}
+            onClick={() => setNotificationOpen((open) => !open)}
             className="relative rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary"
             aria-label="消息中心"
+            aria-expanded={notificationOpen}
           >
             <Bell className="size-5" />
-            <span className="absolute top-2 right-2 size-2 rounded-full border border-surface bg-error" />
+            {unreadCount > 0 ? (
+              <span className="absolute top-2 right-2 size-2 rounded-full border border-surface bg-error" />
+            ) : null}
           </button>
-          <div className="invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
-            <NotificationDropdown messages={messageItems} onMessageOpen={onMessageOpen} onViewAll={onMessagesClick} />
-          </div>
+          {notificationOpen ? (
+            <NotificationDropdown
+              messages={messages}
+              onMessageOpen={(message) => {
+                setNotificationOpen(false)
+                onMessageOpen?.(message)
+              }}
+              onViewAll={() => {
+                setNotificationOpen(false)
+                onMessagesClick?.()
+              }}
+              onMarkAllRead={() => {
+                void markAllRead()
+              }}
+            />
+          ) : null}
         </div>
         {!isAuthenticated ? (
           <button

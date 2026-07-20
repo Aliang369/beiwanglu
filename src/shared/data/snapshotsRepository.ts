@@ -1,9 +1,14 @@
 /**
- * 笔记快照本地存储仓库。
- * - localStorage key: beiwanglu.snapshots.v1
- * - 结构：{ version, snapshots: Record<noteId, Snapshot[]> }
- * - TODO: 后续迁移到 IndexedDB 或后端存储，当前跑通流程使用 localStorage。
+ * 笔记快照仓储抽象。
+ *
+ * 与 NotesRepository 模式一致：
+ * - 未登录用 WebSnapshotsRepository（localStorage）
+ * - 登录后由 notesStore 切换到 ApiSnapshotsRepository（远端）
+ *
+ * localStorage key: beiwanglu.snapshots.v1
+ * 结构：{ version, snapshots: Record<noteId, Snapshot[]> }
  */
+import { snapshotsApi } from '../api/modules/snapshotsApi'
 import { MAX_SNAPSHOTS_PER_NOTE, SNAPSHOT_TTL_MS } from '../types/snapshot'
 import type { Snapshot } from '../types/snapshot'
 
@@ -14,20 +19,34 @@ interface SnapshotsStorage {
   snapshots: Record<string, Snapshot[]>
 }
 
-export class WebSnapshotsRepository {
+/**
+ * 快照仓储接口。
+ * - listByNote: 返回指定笔记的快照列表（按 createdAt 倒序）
+ * - add: 追加快照，并按双重策略清理（实现方负责 trim），返回最新列表
+ * - deleteByNote: 删除指定笔记的全部快照（笔记永久删除时级联调用）
+ */
+export interface SnapshotsRepository {
+  listByNote(noteId: string): Promise<Snapshot[]>
+  add(snapshot: Snapshot): Promise<Snapshot[]>
+  deleteByNote(noteId: string): Promise<void>
+}
+
+// ---------------- 本地仓储（localStorage） ----------------
+
+export class WebSnapshotsRepository implements SnapshotsRepository {
   private readonly storage: Storage
 
   constructor(storage: Storage = window.localStorage) {
     this.storage = storage
   }
 
-  listByNote(noteId: string): Snapshot[] {
+  async listByNote(noteId: string): Promise<Snapshot[]> {
     const data = this.read()
     return data.snapshots[noteId] ?? []
   }
 
   /** 追加快照并按双重策略清理（数量上限 + 时间上限）。 */
-  add(snapshot: Snapshot): Snapshot[] {
+  async add(snapshot: Snapshot): Promise<Snapshot[]> {
     const data = this.read()
     const list = (data.snapshots[snapshot.noteId] ?? []).slice()
     list.push(snapshot)
@@ -37,15 +56,8 @@ export class WebSnapshotsRepository {
     return trimmed
   }
 
-  /** 替换某笔记的全部快照（清理用）。 */
-  setNoteSnapshots(noteId: string, snapshots: Snapshot[]): void {
-    const data = this.read()
-    data.snapshots[noteId] = snapshots
-    this.write(data)
-  }
-
   /** 删除某笔记的全部快照（笔记被永久删除时调用）。 */
-  deleteByNote(noteId: string): void {
+  async deleteByNote(noteId: string): Promise<void> {
     const data = this.read()
     delete data.snapshots[noteId]
     this.write(data)
@@ -79,4 +91,33 @@ export class WebSnapshotsRepository {
   }
 }
 
+// ---------------- 远端仓储（基于 snapshotsApi） ----------------
+
+/**
+ * 远端快照仓储。双重保留策略（20 + 7 天）由后端实现。
+ */
+export class ApiSnapshotsRepository implements SnapshotsRepository {
+  async listByNote(noteId: string): Promise<Snapshot[]> {
+    return snapshotsApi.listByNote(noteId)
+  }
+
+  async add(snapshot: Snapshot): Promise<Snapshot[]> {
+    await snapshotsApi.create({
+      noteId: snapshot.noteId,
+      title: snapshot.title,
+      noteTitle: snapshot.noteTitle,
+      content: snapshot.content,
+    })
+    // 后端已 trim，重新拉取列表保证一致
+    return snapshotsApi.listByNote(snapshot.noteId)
+  }
+
+  async deleteByNote(noteId: string): Promise<void> {
+    await snapshotsApi.deleteByNote(noteId)
+  }
+}
+
+// ---------------- 单例 ----------------
+
 export const webSnapshotsRepository = new WebSnapshotsRepository()
+export const apiSnapshotsRepository = new ApiSnapshotsRepository()

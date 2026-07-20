@@ -1,8 +1,10 @@
-import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useAuthStore } from '../../shared/store/authStore'
 import { AgreementModal } from './AgreementModal'
 import { AuthInput } from './AuthInput'
+import { getAuthErrorMessage } from './authFormUtils'
 
 interface RegisterViewProps {
   onSwitchToLogin: () => void
@@ -15,9 +17,11 @@ interface RegisterErrors {
   password?: string
   confirmPassword?: string
   terms?: string
+  form?: string
 }
 
 export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProps) {
+  const register = useAuthStore((state) => state.register)
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,18 +30,10 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<RegisterErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [agreementModal, setAgreementModal] = useState<null | 'terms' | 'privacy'>(null)
-  const submitTimeoutRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    return () => {
-      if (submitTimeoutRef.current !== null) {
-        window.clearTimeout(submitTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const nextErrors: RegisterErrors = {}
@@ -74,12 +70,23 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
     }
 
     setErrors({})
+    setSuccessMessage(null)
     setIsSubmitting(true)
-    submitTimeoutRef.current = window.setTimeout(() => {
-      submitTimeoutRef.current = null
+    try {
+      await register({
+        account: email.trim(),
+        password,
+        name: username.trim(),
+      })
+      setSuccessMessage('注册成功，请使用账号登录')
+      window.setTimeout(() => {
+        onRegistered()
+      }, 900)
+    } catch (error) {
+      setErrors({ form: getAuthErrorMessage(error, '注册失败，请稍后重试') })
+    } finally {
       setIsSubmitting(false)
-      onRegistered()
-    }, 450)
+    }
   }
 
   return (
@@ -89,13 +96,41 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
         <p className="font-label-md text-label-md text-on-surface-variant">开启您的纯净记录之旅</p>
       </div>
 
-      <form className="space-y-stack-md" onSubmit={handleSubmit}>
-        <AuthInput label="用户名" value={username} onChange={setUsername} placeholder="用户名" icon={User} error={errors.username} disabled={isSubmitting} autoComplete="username" />
-        <AuthInput label="邮箱地址" value={email} onChange={setEmail} placeholder="邮箱地址" type="email" icon={Mail} error={errors.email} disabled={isSubmitting} autoComplete="email" />
+      <form className="space-y-stack-md" onSubmit={(event) => void handleSubmit(event)}>
+        <AuthInput
+          label="用户名"
+          value={username}
+          onChange={(value) => {
+            setUsername(value)
+            setErrors((current) => ({ ...current, username: undefined, form: undefined }))
+          }}
+          placeholder="用户名"
+          icon={User}
+          error={errors.username}
+          disabled={isSubmitting}
+          autoComplete="username"
+        />
+        <AuthInput
+          label="邮箱地址"
+          value={email}
+          onChange={(value) => {
+            setEmail(value)
+            setErrors((current) => ({ ...current, email: undefined, form: undefined }))
+          }}
+          placeholder="邮箱地址"
+          type="email"
+          icon={Mail}
+          error={errors.email}
+          disabled={isSubmitting}
+          autoComplete="email"
+        />
         <AuthInput
           label="密码"
           value={password}
-          onChange={setPassword}
+          onChange={(value) => {
+            setPassword(value)
+            setErrors((current) => ({ ...current, password: undefined, form: undefined }))
+          }}
           placeholder="密码"
           type={showPassword ? 'text' : 'password'}
           icon={Lock}
@@ -116,7 +151,10 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
         <AuthInput
           label="确认密码"
           value={confirmPassword}
-          onChange={setConfirmPassword}
+          onChange={(value) => {
+            setConfirmPassword(value)
+            setErrors((current) => ({ ...current, confirmPassword: undefined, form: undefined }))
+          }}
           placeholder="确认密码"
           type={showPassword ? 'text' : 'password'}
           icon={Lock}
@@ -128,7 +166,10 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
         <label className="flex items-start gap-2 pt-1">
           <input
             checked={acceptedTerms}
-            onChange={(event) => setAcceptedTerms(event.target.checked)}
+            onChange={(event) => {
+              setAcceptedTerms(event.target.checked)
+              setErrors((current) => ({ ...current, terms: undefined }))
+            }}
             className="mt-0.5 size-4 rounded border-outline text-primary focus:ring-primary"
             type="checkbox"
             disabled={isSubmitting}
@@ -141,13 +182,26 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
           </span>
         </label>
         {errors.terms ? <p className="px-2 font-label-sm text-label-sm text-error">{errors.terms}</p> : null}
+        {errors.form ? (
+          <p className="px-2 font-label-sm text-label-sm text-error" role="alert">
+            {errors.form}
+          </p>
+        ) : null}
+        {successMessage ? (
+          <div className="rounded-2xl border border-primary-fixed/50 bg-primary-fixed/20 px-4 py-3" role="status" aria-live="polite">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
+              <p className="font-label-md text-label-md text-on-surface">{successMessage}</p>
+            </div>
+          </div>
+        ) : null}
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || Boolean(successMessage)}
           className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 font-label-md text-label-md text-on-primary shadow-sm transition-all duration-200 hover:scale-[1.02] hover:bg-primary-container hover:text-on-primary-container focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 active:scale-[0.98] disabled:cursor-wait disabled:opacity-80"
         >
-          {isSubmitting ? '正在创建...' : '立即注册'}
+          {isSubmitting ? '正在创建...' : successMessage ? '即将跳转登录...' : '立即注册'}
           <ArrowRight className="size-4" />
         </button>
       </form>

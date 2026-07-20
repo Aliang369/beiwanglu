@@ -8,14 +8,18 @@ import {
   User,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import type { MockUserAccount } from '../../auth/LoginView'
+import { userApi } from '../../../shared/api/modules/userApi'
+import { uploadsApi } from '../../../shared/api/modules/uploadsApi'
+import { isMockApiMode } from '../../../shared/api/config'
+import { isApiError } from '../../../shared/api/types'
+import { useAuthStore } from '../../../shared/store/authStore'
+import type { User as AuthUser } from '../../../shared/types/auth'
+import type { SecuritySettings as SecuritySettingsData } from '../../../shared/types/userProfile'
 
 export type SettingsTab = 'profile' | 'security'
 
 interface SettingsViewProps {
   initialTab?: SettingsTab
-  account: MockUserAccount
-  onAccountChange: (account: MockUserAccount) => void
 }
 
 const tabs = [
@@ -51,12 +55,17 @@ function SectionTitle({ icon: Icon, tone = 'primary', children }: { icon?: typeo
   )
 }
 
-export function SettingsView({ initialTab = 'profile', account, onAccountChange }: SettingsViewProps) {
+export function SettingsView({ initialTab = 'profile' }: SettingsViewProps) {
+  const user = useAuthStore((state) => state.user)
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab)
 
   useEffect(() => {
     setActiveTab(initialTab)
   }, [initialTab])
+
+  if (!user) {
+    return null
+  }
 
   return (
     <main className="relative mx-auto w-full flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
@@ -86,31 +95,31 @@ export function SettingsView({ initialTab = 'profile', account, onAccountChange 
         </aside>
 
         <div className="min-w-0 flex-1 pb-16">
-          {activeTab === 'profile' ? <ProfileSettings account={account} onAccountChange={onAccountChange} /> : null}
-          {activeTab === 'security' ? (
-            <SecuritySettings />
-          ) : null}
+          {activeTab === 'profile' ? <ProfileSettings user={user} /> : null}
+          {activeTab === 'security' ? <SecuritySettings /> : null}
         </div>
       </div>
     </main>
   )
 }
 
-function ProfileSettings({ account, onAccountChange }: { account: MockUserAccount; onAccountChange: (account: MockUserAccount) => void }) {
-  const [name, setName] = useState(account.name)
-  const [email, setEmail] = useState(account.email)
-  const [bio, setBio] = useState(account.bio)
-  const [avatarUrl, setAvatarUrl] = useState(account.avatarUrl)
+function ProfileSettings({ user }: { user: AuthUser }) {
+  const setUser = useAuthStore((state) => state.setUser)
+  const [name, setName] = useState(user.name)
+  const [email, setEmail] = useState(user.email)
+  const [bio, setBio] = useState(user.bio)
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl)
   const [errors, setErrors] = useState<{ name?: string; email?: string; avatar?: string; save?: string }>({})
   const [status, setStatus] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setName(account.name)
-    setEmail(account.email)
-    setBio(account.bio)
-    setAvatarUrl(account.avatarUrl)
-  }, [account])
+    setName(user.name)
+    setEmail(user.email)
+    setBio(user.bio)
+    setAvatarUrl(user.avatarUrl)
+  }, [user])
 
   async function processAvatarFile(file: File) {
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
@@ -124,12 +133,21 @@ function ProfileSettings({ account, onAccountChange }: { account: MockUserAccoun
     }
 
     try {
-      const dataUrl = await compressImageToDataUrl(file)
-      setAvatarUrl(dataUrl)
+      // real 模式：上传到后端，拿 URL 后存
+      // mock 模式：本地压缩为 dataURL（保留原行为）
+      let finalUrl: string
+      if (isMockApiMode()) {
+        finalUrl = await compressImageToDataUrl(file)
+      } else {
+        const relativeUrl = await uploadsApi.uploadImage(file)
+        finalUrl = uploadsApi.resolveUrl(relativeUrl)
+      }
+      setAvatarUrl(finalUrl)
       setErrors((current) => ({ ...current, avatar: undefined }))
       setStatus(null)
-    } catch {
-      setErrors((current) => ({ ...current, avatar: '无法处理该图片，请重试' }))
+    } catch (err) {
+      const msg = isApiError(err) ? err.message : '无法处理该图片，请重试'
+      setErrors((current) => ({ ...current, avatar: msg }))
     }
   }
 
@@ -142,7 +160,7 @@ function ProfileSettings({ account, onAccountChange }: { account: MockUserAccoun
     void processAvatarFile(file)
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextErrors: { name?: string; email?: string } = {}
     const nextName = name.trim()
@@ -162,33 +180,47 @@ function ProfileSettings({ account, onAccountChange }: { account: MockUserAccoun
     }
 
     if (Object.keys(nextErrors).length > 0) {
-      setErrors((current) => ({ ...current, ...nextErrors }))
+      setErrors((current) => ({ ...current, ...nextErrors, save: undefined }))
       setStatus(null)
       return
     }
 
+    setIsSaving(true)
+    setStatus(null)
+    setErrors((current) => ({ ...current, save: undefined }))
     try {
-      onAccountChange({
-        ...account,
-        account: account.account === account.email ? nextEmail : account.account,
+      const profile = await userApi.updateProfile({
         name: nextName,
-        email: nextEmail,
         bio: nextBio,
         avatarUrl,
       })
-      setName(nextName)
+      setUser({
+        ...user,
+        name: profile.name,
+        email: nextEmail,
+        bio: profile.bio,
+        avatarUrl: profile.avatarUrl,
+        updatedAt: profile.updatedAt,
+      })
+      setName(profile.name)
       setEmail(nextEmail)
-      setBio(nextBio)
+      setBio(profile.bio)
+      setAvatarUrl(profile.avatarUrl)
       setErrors({})
-      setStatus('资料已保存到本地')
-    } catch {
+      setStatus('资料已保存')
+    } catch (error) {
       setStatus(null)
-      setErrors((current) => ({ ...current, avatar: '本地存储空间不足，请换更小的头像后重试' }))
+      setErrors((current) => ({
+        ...current,
+        save: isApiError(error) ? error.message : '保存失败，请稍后重试',
+      }))
+    } finally {
+      setIsSaving(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={(event) => void handleSubmit(event)} noValidate>
       <div className="space-y-6">
         <SettingsCard>
           <SectionTitle icon={User}>基本信息</SectionTitle>
@@ -275,9 +307,10 @@ function ProfileSettings({ account, onAccountChange }: { account: MockUserAccoun
           {errors.save ? <p className="font-label-md text-label-md text-error" role="alert">{errors.save}</p> : null}
           <button
             type="submit"
-            className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary shadow-sm transition-all hover:opacity-90 active:scale-95"
+            disabled={isSaving}
+            className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:cursor-wait disabled:opacity-80"
           >
-            保存更改
+            {isSaving ? '保存中...' : '保存更改'}
           </button>
         </div>
       </div>
@@ -291,7 +324,7 @@ function getPasswordStrength(password: string) {
   }
 
   let score = 0
-  if (password.length >= 8) score += 1
+  if (password.length >= 6) score += 1
   if (password.length >= 12) score += 1
   if (/[A-Za-z]/.test(password) && /\d/.test(password)) score += 1
   if (/[^A-Za-z0-9]/.test(password)) score += 1
@@ -309,18 +342,44 @@ function SecuritySettings() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [errors, setErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({})
+  const [errors, setErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string; form?: string }>({})
   const [status, setStatus] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [security, setSecurity] = useState<SecuritySettingsData | null>(null)
+  const [securityLoading, setSecurityLoading] = useState(true)
+  const [securityError, setSecurityError] = useState<string | null>(null)
   const passwordStrength = getPasswordStrength(newPassword)
   const canSubmitPassword =
     Boolean(currentPassword) &&
-    newPassword.length >= 8 &&
-    /[A-Za-z]/.test(newPassword) &&
-    /\d/.test(newPassword) &&
+    newPassword.length >= 6 &&
     newPassword !== currentPassword &&
-    confirmPassword === newPassword
+    confirmPassword === newPassword &&
+    !isSubmitting
 
-  function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    let cancelled = false
+    setSecurityLoading(true)
+    setSecurityError(null)
+    void userApi
+      .getSecuritySettings()
+      .then((data) => {
+        if (!cancelled) {
+          setSecurity(data)
+          setSecurityLoading(false)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSecurityError(isApiError(error) ? error.message : '安全设置加载失败')
+          setSecurityLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextErrors: typeof errors = {}
 
@@ -330,10 +389,8 @@ function SecuritySettings() {
 
     if (!newPassword) {
       nextErrors.newPassword = '请输入新密码'
-    } else if (newPassword.length < 8) {
-      nextErrors.newPassword = '新密码至少需要 8 位'
-    } else if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
-      nextErrors.newPassword = '新密码需同时包含字母和数字'
+    } else if (newPassword.length < 6) {
+      nextErrors.newPassword = '新密码至少需要 6 位'
     } else if (newPassword === currentPassword) {
       nextErrors.newPassword = '新密码不能与当前密码相同'
     }
@@ -350,18 +407,34 @@ function SecuritySettings() {
       return
     }
 
+    setIsSubmitting(true)
     setErrors({})
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
-    setStatus('认证服务尚未接入，当前仅完成前端校验，密码未修改')
+    setStatus(null)
+    try {
+      await userApi.changePassword({
+        currentPassword,
+        newPassword,
+      })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setStatus('密码已更新')
+      const nextSecurity = await userApi.getSecuritySettings()
+      setSecurity(nextSecurity)
+    } catch (error) {
+      setErrors({
+        form: isApiError(error) ? error.message : '修改密码失败，请稍后重试',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   function updatePasswordField(field: 'currentPassword' | 'newPassword' | 'confirmPassword', value: string) {
     if (field === 'currentPassword') setCurrentPassword(value)
     if (field === 'newPassword') setNewPassword(value)
     if (field === 'confirmPassword') setConfirmPassword(value)
-    setErrors((current) => ({ ...current, [field]: undefined }))
+    setErrors((current) => ({ ...current, [field]: undefined, form: undefined }))
     setStatus(null)
   }
 
@@ -369,8 +442,36 @@ function SecuritySettings() {
     <div>
       <div className="space-y-6">
         <SettingsCard>
+          <SectionTitle icon={Shield}>安全概览</SectionTitle>
+          {securityLoading ? (
+            <p className="font-body-md text-body-md text-on-surface-variant">正在加载安全设置...</p>
+          ) : securityError ? (
+            <p className="font-body-md text-body-md text-error" role="alert">
+              {securityError}
+            </p>
+          ) : security ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-3">
+                <p className="font-label-sm text-label-sm text-on-surface-variant">二次验证</p>
+                <p className="mt-1 font-label-md text-label-md text-on-surface">
+                  {security.twoFactorEnabled ? '已开启' : '未开启'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-3">
+                <p className="font-label-sm text-label-sm text-on-surface-variant">上次修改密码</p>
+                <p className="mt-1 font-label-md text-label-md text-on-surface">
+                  {security.lastPasswordChangedAt
+                    ? new Date(security.lastPasswordChangedAt).toLocaleString('zh-CN')
+                    : '暂无记录'}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </SettingsCard>
+
+        <SettingsCard>
           <SectionTitle icon={Lock}>修改密码</SectionTitle>
-          <form onSubmit={handlePasswordSubmit} noValidate>
+          <form onSubmit={(event) => void handlePasswordSubmit(event)} noValidate>
             <div className="grid grid-cols-1 gap-6">
               <label>
                 <span className="mb-1 ml-1 block font-label-sm text-label-sm text-on-surface-variant">当前密码</span>
@@ -393,7 +494,7 @@ function SecuritySettings() {
                     aria-invalid={Boolean(errors.newPassword)}
                     aria-describedby="new-password-feedback"
                     className={`w-full border-0 border-b bg-transparent px-1 py-2 font-body-md text-body-md focus:outline-none ${errors.newPassword ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
-                    placeholder="至少 8 位，包含字母和数字"
+                    placeholder="至少 6 位"
                     type="password"
                     autoComplete="new-password"
                   />
@@ -417,13 +518,14 @@ function SecuritySettings() {
               </div>
             </div>
             <div className="mt-6 flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-end">
-              {status ? <p className="font-label-md text-label-md text-on-surface-variant" role="status">{status}</p> : null}
+              {status ? <p className="font-label-md text-label-md text-primary" role="status">{status}</p> : null}
+              {errors.form ? <p className="font-label-md text-label-md text-error" role="alert">{errors.form}</p> : null}
               <button
                 type="submit"
-                aria-disabled={!canSubmitPassword}
-                className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary transition-opacity hover:opacity-90 aria-disabled:opacity-60"
+                disabled={!canSubmitPassword}
+                className="rounded-full bg-primary px-8 py-2.5 font-label-md text-label-md font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                更新密码
+                {isSubmitting ? '更新中...' : '更新密码'}
               </button>
             </div>
           </form>

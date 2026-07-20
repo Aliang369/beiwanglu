@@ -1,9 +1,8 @@
-// 改动：透传 onSetCover / updateNote 以支持封面读写；挂载标签筛选
+// 改动：透传 onSetCover / updateNote 以支持封面读写；挂载标签筛选；账号 UI 接通 Auth store
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Plus } from 'lucide-react'
 import { AuthModal } from '../auth/AuthModal'
 import type { AuthMode } from '../auth/AuthModal'
-import type { MockUserAccount } from '../auth/LoginView'
 import { EditorView } from './components/EditorView'
 import { FavoritesView } from './components/FavoritesView'
 import { FoldersView } from './components/FoldersView'
@@ -18,41 +17,14 @@ import { Sidebar } from './components/Sidebar'
 import { TagFilterBar } from './components/TagFilterBar'
 import { Toolbar } from './components/Toolbar'
 import { TrashView } from './components/TrashView'
-import type { MessageItem } from './components/messageMockData'
 import { useNotesStore } from './notesStore'
+import { apiNotesRepository } from '../../shared/data/apiNotesRepository'
+import { webNotesRepository } from '../../shared/data/webNotesRepository'
+import { apiSnapshotsRepository, webSnapshotsRepository } from '../../shared/data/snapshotsRepository'
 import { getAllTags, getVisibleNotes } from '../../shared/notes/noteSelectors'
-
-const AUTH_ACCOUNT_STORAGE_KEY = 'beiwanglu.auth.account.v1'
-
-function loadStoredAccount(): MockUserAccount | null {
-  try {
-    const stored = window.localStorage.getItem(AUTH_ACCOUNT_STORAGE_KEY)
-    if (!stored) {
-      return null
-    }
-
-    const parsed: unknown = JSON.parse(stored)
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      typeof Reflect.get(parsed, 'account') !== 'string' ||
-      typeof Reflect.get(parsed, 'name') !== 'string' ||
-      typeof Reflect.get(parsed, 'email') !== 'string'
-    ) {
-      return null
-    }
-
-    return {
-      account: Reflect.get(parsed, 'account'),
-      name: Reflect.get(parsed, 'name'),
-      email: Reflect.get(parsed, 'email'),
-      bio: typeof Reflect.get(parsed, 'bio') === 'string' ? Reflect.get(parsed, 'bio') : '',
-      avatarUrl: typeof Reflect.get(parsed, 'avatarUrl') === 'string' ? Reflect.get(parsed, 'avatarUrl') : null,
-    }
-  } catch {
-    return null
-  }
-}
+import { useAuthStore } from '../../shared/store/authStore'
+import { useMessagesStore } from '../../shared/store/messagesStore'
+import type { MessageItem } from '../../shared/types/message'
 
 export function NotesHome() {
   const {
@@ -85,22 +57,34 @@ export function NotesHome() {
     loadSnapshots,
     createSnapshot,
     restoreSnapshot,
+    setRepository,
+    setSnapshotsRepository,
+    isLoading: notesLoading,
+    loadError: notesLoadError,
   } = useNotesStore()
+  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const logout = useAuthStore((state) => state.logout)
+  const loadMessages = useMessagesStore((state) => state.load)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(() => new URL(window.location.href).searchParams.get('note'))
   const [utilityView, setUtilityView] = useState<'settings' | 'help' | 'messages' | null>(null)
   const [authModal, setAuthModal] = useState<AuthMode | null>(null)
-  const [account, setAccount] = useState<MockUserAccount | null>(loadStoredAccount)
-  const isAuthenticated = account !== null
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('profile')
   const [selectedMessage, setSelectedMessage] = useState<MessageItem | null>(null)
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null)
   const [previewingSnapshotId, setPreviewingSnapshotId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isLoaded) {
-      void loadNotes()
-    }
-  }, [isLoaded, loadNotes])
+    void setRepository(isAuthenticated ? apiNotesRepository : webNotesRepository)
+  }, [isAuthenticated, setRepository])
+
+  useEffect(() => {
+    setSnapshotsRepository(isAuthenticated ? apiSnapshotsRepository : webSnapshotsRepository)
+  }, [isAuthenticated, setSnapshotsRepository])
+
+  useEffect(() => {
+    void loadMessages(isAuthenticated)
+  }, [isAuthenticated, loadMessages])
 
   useEffect(() => {
     if (!isLoaded || !editingNoteId) {
@@ -133,6 +117,12 @@ export function NotesHome() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated && utilityView === 'settings') {
+      setUtilityView(null)
+    }
+  }, [isAuthenticated, utilityView])
 
   const visibleNotes = getVisibleNotes(notes, filter)
   const allTags = getAllTags(notes.filter((note) => !note.isDeleted || filter.view === 'trash'))
@@ -176,14 +166,20 @@ export function NotesHome() {
     setView('all')
   }
 
-  function handleSettingsClick() {
-    exitEditor()
+  function requireAuth(action?: () => void) {
     if (!isAuthenticated) {
       setAuthModal('login')
       return
     }
-    setSettingsTab('profile')
-    setUtilityView('settings')
+    action?.()
+  }
+
+  function handleSettingsClick() {
+    exitEditor()
+    requireAuth(() => {
+      setSettingsTab('profile')
+      setUtilityView('settings')
+    })
   }
 
   function handleHelpClick() {
@@ -193,14 +189,18 @@ export function NotesHome() {
 
   function handleProfileClick() {
     exitEditor()
-    setSettingsTab('profile')
-    setUtilityView('settings')
+    requireAuth(() => {
+      setSettingsTab('profile')
+      setUtilityView('settings')
+    })
   }
 
   function handleAccountSettingsClick() {
     exitEditor()
-    setSettingsTab('security')
-    setUtilityView('settings')
+    requireAuth(() => {
+      setSettingsTab('security')
+      setUtilityView('settings')
+    })
   }
 
   function handleMessagesClick() {
@@ -208,28 +208,14 @@ export function NotesHome() {
     setUtilityView('messages')
   }
 
-  function persistAccount(nextAccount: MockUserAccount) {
-    try {
-      window.localStorage.setItem(AUTH_ACCOUNT_STORAGE_KEY, JSON.stringify(nextAccount))
-      setAccount(nextAccount)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  function handleAuthenticated(nextAccount: MockUserAccount) {
-    if (!persistAccount(nextAccount)) {
-      setAccount(nextAccount)
-    }
+  function handleAuthenticated() {
     setAuthModal(null)
   }
 
-  function handleLogout() {
-    window.localStorage.removeItem(AUTH_ACCOUNT_STORAGE_KEY)
-    setAccount(null)
+  async function handleLogout() {
+    await logout()
     setAuthModal(null)
-    setUtilityView(null)
+    setUtilityView((current) => (current === 'settings' ? null : current))
     exitEditor()
     setView('all')
     window.history.replaceState(null, '', '/')
@@ -284,18 +270,8 @@ export function NotesHome() {
         }}
       />
     )
-  } else if (utilityView === 'settings' && account) {
-    mainContent = (
-      <SettingsView
-        initialTab={settingsTab}
-        account={account}
-        onAccountChange={(nextAccount) => {
-          if (!persistAccount(nextAccount)) {
-            throw new Error('local-storage-full')
-          }
-        }}
-      />
-    )
+  } else if (utilityView === 'settings' && user) {
+    mainContent = <SettingsView initialTab={settingsTab} />
   } else if (utilityView === 'help') {
     mainContent = <HelpView />
   } else if (utilityView === 'messages') {
@@ -303,14 +279,12 @@ export function NotesHome() {
       <>
         <Toolbar
           query={filter.query}
-          isAuthenticated={isAuthenticated}
-          account={account}
           onQueryChange={setQuery}
           onRefresh={() => loadNotes()}
           onLoginClick={() => setAuthModal('login')}
           onProfileClick={handleProfileClick}
           onAccountSettingsClick={handleAccountSettingsClick}
-          onLogoutClick={handleLogout}
+          onLogoutClick={() => void handleLogout()}
           onMessagesClick={handleMessagesClick}
           onMessageOpen={setSelectedMessage}
         />
@@ -322,17 +296,35 @@ export function NotesHome() {
       <>
         <Toolbar
           query={filter.query}
-          isAuthenticated={isAuthenticated}
-          account={account}
           onQueryChange={setQuery}
           onRefresh={() => loadNotes()}
           onLoginClick={() => setAuthModal('login')}
           onProfileClick={handleProfileClick}
           onAccountSettingsClick={handleAccountSettingsClick}
-          onLogoutClick={handleLogout}
+          onLogoutClick={() => void handleLogout()}
           onMessagesClick={handleMessagesClick}
           onMessageOpen={setSelectedMessage}
         />
+        {(notesLoading || notesLoadError) && filter.view === 'all' ? (
+          <div className="mx-auto w-full max-w-container-max-width px-gutter pt-4">
+            {notesLoadError ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error/30 bg-error-container/20 px-4 py-3" role="alert">
+                <p className="font-label-md text-label-md text-error">{notesLoadError}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadNotes()}
+                  className="rounded-full border border-error/40 px-3 py-1 font-label-sm text-label-sm text-error"
+                >
+                  重试
+                </button>
+              </div>
+            ) : (
+              <p className="font-label-md text-label-md text-on-surface-variant">
+                {isAuthenticated ? '正在加载云端笔记...' : '正在加载本地笔记...'}
+              </p>
+            )}
+          </div>
+        ) : null}
         <TagFilterBar tags={allTags} selectedTagId={filter.tagId} onTagChange={setTagFilter} />
         {filter.view === 'favorites' ? (
           <FavoritesView

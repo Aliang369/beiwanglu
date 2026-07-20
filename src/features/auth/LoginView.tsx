@@ -1,59 +1,33 @@
 import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, MessageCircle } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useAuthStore } from '../../shared/store/authStore'
 import { AuthInput } from './AuthInput'
+import { getAuthErrorMessage } from './authFormUtils'
 import { CodeLoginView } from './CodeLoginView'
-
-export interface MockUserAccount {
-  account: string
-  name: string
-  email: string
-  bio: string
-  avatarUrl: string | null
-}
 
 interface LoginViewProps {
   onSwitchToRegister: () => void
   onForgotPassword: () => void
-  onAuthenticated: (account: MockUserAccount) => void
-}
-
-function createMockUserAccount(account: string): MockUserAccount {
-  const value = account.trim()
-  const isEmail = value.includes('@')
-
-  return {
-    account: value,
-    name: isEmail ? value.split('@')[0] : value,
-    email: isEmail ? value : `${value}@example.com`,
-    bio: '',
-    avatarUrl: null,
-  }
+  onAuthenticated: () => void
 }
 
 interface LoginErrors {
   account?: string
   password?: string
+  form?: string
 }
 
 export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticated }: LoginViewProps) {
+  const login = useAuthStore((state) => state.login)
   const [loginMethod, setLoginMethod] = useState<'password' | 'code'>('password')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<LoginErrors>({})
-  const submitTimeoutRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    return () => {
-      if (submitTimeoutRef.current !== null) {
-        window.clearTimeout(submitTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const nextErrors: LoginErrors = {}
@@ -75,11 +49,14 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
 
     setErrors({})
     setIsSubmitting(true)
-    submitTimeoutRef.current = window.setTimeout(() => {
-      submitTimeoutRef.current = null
+    try {
+      await login({ account: account.trim(), password })
+      onAuthenticated()
+    } catch (error) {
+      setErrors({ form: getAuthErrorMessage(error, '登录失败，请检查账号或密码') })
+    } finally {
       setIsSubmitting(false)
-      onAuthenticated(createMockUserAccount(account))
-    }, 450)
+    }
   }
 
   if (loginMethod === 'code') {
@@ -99,11 +76,14 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
         <p className="mt-2 font-body-md text-body-md text-on-surface-variant">登录您的灵感空间</p>
       </div>
 
-      <form className="flex w-full flex-col gap-stack-md" onSubmit={handleSubmit}>
+      <form className="flex w-full flex-col gap-stack-md" onSubmit={(event) => void handleSubmit(event)}>
         <AuthInput
           label="邮箱或用户名"
           value={account}
-          onChange={setAccount}
+          onChange={(value) => {
+            setAccount(value)
+            setErrors((current) => ({ ...current, account: undefined, form: undefined }))
+          }}
           placeholder="邮箱或用户名"
           icon={Mail}
           error={errors.account}
@@ -113,7 +93,10 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
         <AuthInput
           label="密码"
           value={password}
-          onChange={setPassword}
+          onChange={(value) => {
+            setPassword(value)
+            setErrors((current) => ({ ...current, password: undefined, form: undefined }))
+          }}
           placeholder="密码"
           type={showPassword ? 'text' : 'password'}
           icon={Lock}
@@ -131,6 +114,12 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
             </button>
           }
         />
+
+        {errors.form ? (
+          <p className="px-2 font-label-sm text-label-sm text-error" role="alert">
+            {errors.form}
+          </p>
+        ) : null}
 
         <div className="mt-2 flex items-center justify-between px-2">
           <button type="button" onClick={() => setLoginMethod('code')} className="font-label-md text-label-md text-primary transition-colors hover:text-primary-container">
@@ -158,10 +147,10 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
           <div className="flex-grow border-t border-outline-variant/50" />
         </div>
         <div className="flex justify-center gap-stack-md">
-          <button type="button" className="flex size-12 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-low text-on-surface transition-colors hover:bg-surface-variant">
+          <button type="button" className="flex size-12 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-low text-on-surface transition-colors hover:bg-surface-variant" disabled title="暂未接入">
             <MessageCircle className="size-5" />
           </button>
-          <button type="button" className="flex size-12 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-low text-on-surface transition-colors hover:bg-surface-variant">
+          <button type="button" className="flex size-12 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-low text-on-surface transition-colors hover:bg-surface-variant" disabled title="暂未接入">
             <Code2 className="size-5" />
           </button>
         </div>

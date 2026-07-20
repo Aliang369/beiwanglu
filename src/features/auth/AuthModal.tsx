@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { ForgotPasswordView } from './ForgotPasswordView'
-import { LoginView, type MockUserAccount } from './LoginView'
+import { LoginView } from './LoginView'
 import { RegisterView } from './RegisterView'
 
 export type AuthMode = 'login' | 'register' | 'forgot-password'
@@ -9,7 +9,7 @@ export type AuthMode = 'login' | 'register' | 'forgot-password'
 interface AuthModalProps {
   mode: AuthMode
   onModeChange: (mode: AuthMode) => void
-  onAuthenticated: (account: MockUserAccount) => void
+  onAuthenticated: () => void
   onClose: () => void
 }
 

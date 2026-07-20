@@ -1,98 +1,94 @@
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, Lock, Mail, Send, ShieldCheck } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Hash, Lock, Mail, Send, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useAuthStore } from '../../shared/store/authStore'
 import { AuthInput } from './AuthInput'
+import { getAuthErrorMessage } from './authFormUtils'
 
 interface ForgotPasswordViewProps {
   onBackToLogin: () => void
 }
 
-type ForgotPasswordStep = 'request' | 'sent' | 'verifying' | 'verified' | 'reset' | 'success'
-
 interface ForgotPasswordErrors {
-  email?: string
+  account?: string
+  code?: string
   password?: string
   confirmPassword?: string
+  form?: string
 }
 
+const COUNTDOWN_SECONDS = 60
+
 export function ForgotPasswordView({ onBackToLogin }: ForgotPasswordViewProps) {
-  const [step, setStep] = useState<ForgotPasswordStep>('request')
-  const [email, setEmail] = useState('')
+  const sendCode = useAuthStore((state) => state.sendCode)
+  const resetPassword = useAuthStore((state) => state.resetPassword)
+  const [account, setAccount] = useState('')
+  const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<ForgotPasswordErrors>({})
+  const [isSending, setIsSending] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const timeoutRef = useRef<number | null>(null)
+  const [hasSentCode, setHasSentCode] = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    return () => {
-      clearPendingDelay()
-    }
-  }, [])
-
-  function clearPendingDelay() {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-  }
-
-  function runDelayed(callback: () => void) {
-    clearPendingDelay()
-
-    timeoutRef.current = window.setTimeout(() => {
-      timeoutRef.current = null
-      callback()
-    }, 450)
-  }
-
-  function handleRequestSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const trimmedEmail = email.trim()
-    const nextErrors: ForgotPasswordErrors = {}
-
-    if (!trimmedEmail) {
-      nextErrors.email = '请输入邮箱地址'
-    } else if (!/^\S+@\S+\.\S+$/.test(trimmedEmail)) {
-      nextErrors.email = '请输入有效的邮箱地址'
+    if (countdown <= 0) {
+      return
     }
 
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors)
-      setStep('request')
+    const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [countdown])
+
+  async function handleSendCode() {
+    const trimmed = account.trim()
+    if (!trimmed) {
+      setErrors({ account: '请输入邮箱或手机号' })
+      return
+    }
+    if (trimmed.includes('@') && !/^\S+@\S+\.\S+$/.test(trimmed)) {
+      setErrors({ account: '请输入有效的邮箱地址' })
       return
     }
 
     setErrors({})
-    setStep('request')
-    setIsSubmitting(true)
-    runDelayed(() => {
-      setIsSubmitting(false)
-      setStep('sent')
-    })
-  }
-
-  function handleVerifyLink() {
-    if (isSubmitting) {
-      return
+    setIsSending(true)
+    try {
+      await sendCode({ account: trimmed, scene: 'reset_password' })
+      setHasSentCode(true)
+      setCountdown(COUNTDOWN_SECONDS)
+    } catch (error) {
+      setErrors({ form: getAuthErrorMessage(error, '验证码发送失败') })
+    } finally {
+      setIsSending(false)
     }
-
-    setErrors({})
-    setStep('verifying')
-    runDelayed(() => setStep('verified'))
   }
 
-  function handleResetSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const nextErrors: ForgotPasswordErrors = {}
+    const trimmed = account.trim()
+
+    if (!trimmed) {
+      nextErrors.account = '请输入邮箱或手机号'
+    }
+
+    if (!hasSentCode) {
+      nextErrors.code = '请先获取验证码'
+    } else if (!code) {
+      nextErrors.code = '请输入验证码'
+    } else if (!/^\d{6}$/.test(code)) {
+      nextErrors.code = '验证码为 6 位数字'
+    }
 
     if (!password) {
       nextErrors.password = '请输入新密码'
-    } else if (password.length < 8) {
-      nextErrors.password = '新密码至少需要 8 位'
+    } else if (password.length < 6) {
+      nextErrors.password = '新密码至少需要 6 位'
     }
 
     if (!confirmPassword) {
@@ -108,51 +104,54 @@ export function ForgotPasswordView({ onBackToLogin }: ForgotPasswordViewProps) {
 
     setErrors({})
     setIsSubmitting(true)
-    runDelayed(() => {
+    try {
+      await resetPassword({
+        account: trimmed,
+        code,
+        newPassword: password,
+      })
+      setSuccess(true)
+    } catch (error) {
+      setErrors({ form: getAuthErrorMessage(error, '重置密码失败') })
+    } finally {
       setIsSubmitting(false)
-      setStep('success')
-    })
-  }
-
-  function handleEmailChange(value: string) {
-    setEmail(value)
-    if (errors.email) {
-      setErrors((current) => ({ ...current, email: undefined }))
-    }
-    if (step !== 'request') {
-      clearPendingDelay()
-      setIsSubmitting(false)
-      setStep('request')
     }
   }
 
-  function handleBackToLogin() {
-    clearPendingDelay()
-    onBackToLogin()
-  }
+  const canResend = countdown === 0 && !isSending
+  const sendButtonText = isSending ? '正在发送...' : countdown > 0 ? `${countdown} 秒后重发` : hasSentCode ? '重新发送' : '获取验证码'
 
-  function handlePasswordChange(value: string) {
-    setPassword(value)
-    if (errors.password) {
-      setErrors((current) => ({ ...current, password: undefined }))
-    }
+  if (success) {
+    return (
+      <>
+        <div className="pt-8 text-center">
+          <h2 className="font-headline-md text-headline-md text-on-surface">密码已重置</h2>
+          <p className="mt-2 font-body-md text-body-md text-on-surface-variant">请使用新密码登录账号。</p>
+        </div>
+        <div className="rounded-3xl border border-primary-fixed/50 bg-primary-fixed/20 px-4 py-4" role="status">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
+            <p className="font-label-md text-label-md text-on-surface">重置成功，接下来请返回登录页。</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onBackToLogin}
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container hover:shadow-md active:scale-[0.98]"
+        >
+          返回登录
+          <ArrowLeft className="size-4" />
+        </button>
+      </>
+    )
   }
-
-  function handleConfirmPasswordChange(value: string) {
-    setConfirmPassword(value)
-    if (errors.confirmPassword) {
-      setErrors((current) => ({ ...current, confirmPassword: undefined }))
-    }
-  }
-
-  const isRequestStep = step === 'request' || step === 'sent'
 
   return (
     <>
       <div>
         <button
           type="button"
-          onClick={handleBackToLogin}
+          onClick={onBackToLogin}
           aria-label="返回登录"
           className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full p-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary"
         >
@@ -160,208 +159,119 @@ export function ForgotPasswordView({ onBackToLogin }: ForgotPasswordViewProps) {
           <span className="hidden pr-1 sm:inline">返回登录</span>
         </button>
         <div className="pt-8 text-center">
-          <h2 className="font-headline-md text-headline-md text-on-surface">{getStepTitle(step)}</h2>
-          <p className="mt-2 font-body-md text-body-md text-on-surface-variant">{getStepDescription(step)}</p>
+          <h2 className="font-headline-md text-headline-md text-on-surface">找回密码</h2>
+          <p className="mt-2 font-body-md text-body-md text-on-surface-variant">通过验证码重置密码（Mock 验证码 123456）。</p>
         </div>
       </div>
 
-      {isRequestStep ? (
-        <form className="flex w-full flex-col gap-stack-md" onSubmit={handleRequestSubmit} noValidate>
-          <AuthInput
-            label="邮箱地址"
-            value={email}
-            onChange={handleEmailChange}
-            placeholder="请输入邮箱地址"
-            type="email"
-            icon={Mail}
-            error={errors.email}
-            disabled={isSubmitting}
-            autoComplete="email"
-          />
+      <form className="flex w-full flex-col gap-stack-md" onSubmit={(event) => void handleSubmit(event)} noValidate>
+        <AuthInput
+          label="邮箱或手机号"
+          value={account}
+          onChange={(value) => {
+            setAccount(value)
+            setErrors((current) => ({ ...current, account: undefined, form: undefined }))
+            if (hasSentCode) {
+              setHasSentCode(false)
+              setCode('')
+              setCountdown(0)
+            }
+          }}
+          placeholder="请输入邮箱或手机号"
+          icon={Mail}
+          error={errors.account}
+          disabled={isSubmitting || isSending}
+          autoComplete="username"
+        />
 
-          {step === 'sent' ? (
-            <div className="rounded-3xl border border-primary-fixed/50 bg-primary-fixed/20 px-4 py-3 text-on-surface" role="status" aria-live="polite">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
-                <div>
-                  <p className="font-label-md text-label-md text-on-surface">发送成功</p>
-                  <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">这是模拟邮件流程。如果该邮箱已注册，您将收到密码重置说明。</p>
-                </div>
-              </div>
+        <button
+          type="button"
+          onClick={() => void handleSendCode()}
+          disabled={!canResend || isSubmitting}
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant/40 bg-surface px-4 py-3 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {sendButtonText}
+          <Send className="size-4" />
+        </button>
+
+        {hasSentCode ? (
+          <div className="rounded-3xl border border-primary-fixed/50 bg-primary-fixed/20 px-4 py-3" role="status" aria-live="polite">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
+              <p className="font-label-md text-label-md text-on-surface">验证码已发送，Mock 固定为 123456。</p>
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container hover:text-on-primary-container hover:shadow-md active:scale-[0.98] disabled:cursor-wait disabled:opacity-80"
-          >
-            {isSubmitting ? '正在发送...' : step === 'sent' ? '重新发送' : '发送重置说明'}
-            <Send className="size-4" />
-          </button>
+        <AuthInput
+          label="验证码"
+          value={code}
+          onChange={(value) => {
+            setCode(value.replace(/\D/g, '').slice(0, 6))
+            setErrors((current) => ({ ...current, code: undefined, form: undefined }))
+          }}
+          placeholder="请输入 6 位验证码"
+          icon={Hash}
+          error={errors.code}
+          disabled={isSubmitting}
+          autoComplete="one-time-code"
+        />
 
-          {step === 'sent' ? (
+        <AuthInput
+          label="新密码"
+          value={password}
+          onChange={(value) => {
+            setPassword(value)
+            setErrors((current) => ({ ...current, password: undefined, form: undefined }))
+          }}
+          placeholder="新密码至少 6 位"
+          type={showPassword ? 'text' : 'password'}
+          icon={Lock}
+          error={errors.password}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          rightAction={
             <button
               type="button"
-              onClick={handleVerifyLink}
-              disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant/40 bg-surface px-4 py-3 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => setShowPassword((value) => !value)}
+              className={`rounded-full p-1 transition-colors ${errors.password ? 'text-error hover:text-on-error-container' : 'text-on-surface-variant hover:text-primary'}`}
+              aria-label={showPassword ? '隐藏密码' : '显示密码'}
             >
-              我已通过邮件链接进入
-              <ShieldCheck className="size-4" />
+              {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
             </button>
-          ) : null}
-        </form>
-      ) : null}
+          }
+        />
 
-      {step === 'verifying' ? (
-        <StatusCard icon="shield" title="正在验证重置链接..." description="正在模拟校验邮件链接和重置凭证，请稍候。" busy />
-      ) : null}
+        <AuthInput
+          label="确认新密码"
+          value={confirmPassword}
+          onChange={(value) => {
+            setConfirmPassword(value)
+            setErrors((current) => ({ ...current, confirmPassword: undefined, form: undefined }))
+          }}
+          placeholder="再次输入新密码"
+          type={showPassword ? 'text' : 'password'}
+          icon={Lock}
+          error={errors.confirmPassword}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+        />
 
-      {step === 'verified' ? (
-        <div className="flex flex-col gap-stack-md">
-          <StatusCard icon="check" title="链接验证成功" description="你现在可以设置新的登录密码。此处为模拟验证，不校验真实邮件 token。" />
-          <button
-            type="button"
-            onClick={() => setStep('reset')}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container hover:text-on-primary-container hover:shadow-md active:scale-[0.98]"
-          >
-            设置新密码
-            <Lock className="size-4" />
-          </button>
-        </div>
-      ) : null}
+        {errors.form ? (
+          <p className="px-2 font-label-sm text-label-sm text-error" role="alert">
+            {errors.form}
+          </p>
+        ) : null}
 
-      {step === 'reset' ? (
-        <form className="flex w-full flex-col gap-stack-md" onSubmit={handleResetSubmit} noValidate>
-          <AuthInput
-            label="新密码"
-            value={password}
-            onChange={handlePasswordChange}
-            placeholder="新密码"
-            type={showPassword ? 'text' : 'password'}
-            icon={Lock}
-            error={errors.password}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            rightAction={<PasswordToggleButton showPassword={showPassword} onToggle={() => setShowPassword((value) => !value)} hasError={Boolean(errors.password)} disabled={isSubmitting} />}
-          />
-          <AuthInput
-            label="确认新密码"
-            value={confirmPassword}
-            onChange={handleConfirmPasswordChange}
-            placeholder="确认新密码"
-            type={showPassword ? 'text' : 'password'}
-            icon={Lock}
-            error={errors.confirmPassword}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-          />
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container hover:text-on-primary-container hover:shadow-md active:scale-[0.98] disabled:cursor-wait disabled:opacity-80"
-          >
-            {isSubmitting ? '正在重置...' : '重置密码'}
-            <ShieldCheck className="size-4" />
-          </button>
-        </form>
-      ) : null}
-
-      {step === 'success' ? (
-        <div className="flex flex-col gap-stack-md">
-          <StatusCard icon="check" title="密码已重置" description="你的密码已经更新，请使用新密码重新登录。此处为模拟重置，不会写入真实账号系统。" />
-          <button
-            type="button"
-            onClick={handleBackToLogin}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container hover:text-on-primary-container hover:shadow-md active:scale-[0.98]"
-          >
-            返回登录
-            <ArrowLeft className="size-4" />
-          </button>
-        </div>
-      ) : null}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 font-label-md text-label-md text-on-primary transition-all hover:bg-primary-container hover:shadow-md active:scale-[0.98] disabled:cursor-wait disabled:opacity-80"
+        >
+          {isSubmitting ? '正在重置...' : '重置密码'}
+          <ShieldCheck className="size-4" />
+        </button>
+      </form>
     </>
-  )
-}
-
-function getStepTitle(step: ForgotPasswordStep) {
-  if (step === 'verified') {
-    return '链接验证成功'
-  }
-
-  if (step === 'reset') {
-    return '设置新密码'
-  }
-
-  if (step === 'success') {
-    return '密码已重置'
-  }
-
-  return '找回密码'
-}
-
-function getStepDescription(step: ForgotPasswordStep) {
-  if (step === 'sent') {
-    return '请确认邮件中的重置入口。你也可以在这里继续模拟后续流程。'
-  }
-
-  if (step === 'verifying') {
-    return '正在验证重置链接...'
-  }
-
-  if (step === 'verified') {
-    return '你现在可以设置新的登录密码。'
-  }
-
-  if (step === 'reset') {
-    return '请输入一个新的安全密码，并再次确认。'
-  }
-
-  if (step === 'success') {
-    return '请使用新密码重新登录。'
-  }
-
-  return '输入注册邮箱，我们会模拟发送一封重置说明邮件。'
-}
-
-function StatusCard({ icon, title, description, busy = false }: { icon: 'check' | 'shield'; title: string; description: string; busy?: boolean }) {
-  const Icon = icon === 'check' ? CheckCircle2 : ShieldCheck
-
-  return (
-    <div className="rounded-3xl border border-primary-fixed/50 bg-primary-fixed/20 px-4 py-4 text-on-surface" role="status" aria-live="polite">
-      <div className="flex items-start gap-3">
-        <Icon className={`mt-0.5 size-5 shrink-0 text-primary ${busy ? 'animate-pulse' : ''}`} />
-        <div>
-          <p className="font-label-md text-label-md text-on-surface">{title}</p>
-          <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">{description}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PasswordToggleButton({
-  showPassword,
-  onToggle,
-  hasError,
-  disabled,
-}: {
-  showPassword: boolean
-  onToggle: () => void
-  hasError: boolean
-  disabled: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      disabled={disabled}
-      className={`rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${hasError ? 'text-error hover:text-on-error-container' : 'text-on-surface-variant hover:text-primary'}`}
-      aria-label={showPassword ? '隐藏密码' : '显示密码'}
-    >
-      {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-    </button>
   )
 }

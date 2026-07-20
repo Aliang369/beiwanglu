@@ -1,6 +1,7 @@
-import { Archive, Info, MailOpen, ShieldCheck, Sparkles, Trash2, UsersRound, Wrench, X } from 'lucide-react'
-import type { ComponentType } from 'react'
-import type { MessageItem, MessageType } from './messageMockData'
+import { Archive, Info, MailOpen, ShieldCheck, Sparkles, UsersRound, Wrench, X } from 'lucide-react'
+import { useEffect, type ComponentType } from 'react'
+import { useMessagesStore } from '../../../shared/store/messagesStore'
+import type { MessageItem, MessageType } from '../../../shared/types/message'
 
 interface MessageDetailModalProps {
   message: MessageItem
@@ -15,7 +16,15 @@ const icons: Record<MessageType, ComponentType<{ className?: string }>> = {
 }
 
 export function MessageDetailModal({ message, onClose }: MessageDetailModalProps) {
+  const markRead = useMessagesStore((state) => state.markRead)
+  const source = useMessagesStore((state) => state.source)
   const Icon = icons[message.type] ?? Wrench
+
+  useEffect(() => {
+    if (message.unread) {
+      void markRead(message.id)
+    }
+  }, [message.id, message.unread, markRead])
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-inverse-surface/35 px-4 py-10 backdrop-blur-[2px]" onClick={onClose}>
@@ -40,13 +49,8 @@ export function MessageDetailModal({ message, onClose }: MessageDetailModalProps
             </div>
 
             <div className="flex shrink-0 gap-2">
-              {/* TODO: 接入真实未读状态。 */}
-              <button type="button" className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high" title="标记为未读">
+              <button type="button" className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high" title="已读" disabled>
                 <MailOpen className="size-5" />
-              </button>
-              {/* TODO: 接入真实删除消息。 */}
-              <button type="button" className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error" title="删除">
-                <Trash2 className="size-5" />
               </button>
               <button type="button" onClick={onClose} className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface" aria-label="关闭消息详情">
                 <X className="size-5" />
@@ -85,7 +89,9 @@ export function MessageDetailModal({ message, onClose }: MessageDetailModalProps
               <div>
                 <h4 className="mb-1 font-label-md text-label-md font-bold">提示</h4>
                 <p className="font-body-md text-body-md text-on-surface-variant">
-                  当前消息为本地演示数据，不会同步已读、删除或账户状态。
+                  {source === 'guest'
+                    ? '当前为未登录本地演示消息，已读与设置仅保存在本会话，刷新后可能重置。'
+                    : '消息数据来自 messagesApi（Mock 或真实后端）。'}
                 </p>
               </div>
             </div>
@@ -94,7 +100,7 @@ export function MessageDetailModal({ message, onClose }: MessageDetailModalProps
 
         <footer className="flex items-center justify-end gap-4 border-t border-surface-variant bg-surface-container-lowest px-6 py-6 md:px-8">
           {message.secondaryAction ? (
-            <button type="button" className="rounded-lg border border-outline-variant px-6 py-2.5 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low">
+            <button type="button" onClick={onClose} className="rounded-lg border border-outline-variant px-6 py-2.5 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low">
               {message.secondaryAction}
             </button>
           ) : null}

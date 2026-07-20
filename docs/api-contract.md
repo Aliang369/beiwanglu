@@ -444,6 +444,144 @@ interface NotificationSettings {
 
 ---
 
+## 5.3 快照 `/snapshots`
+
+> 笔记版本历史快照，2026-07-21 新增。前端将抽象 `SnapshotsRepository` 接口（仿 `NotesRepository` 模式），未登录用 `WebSnapshotsRepository`，登录后自动切换到 `ApiSnapshotsRepository`。
+
+### 5.3.1 列表
+
+`GET /snapshots?noteId=<id>`（需要 token）
+
+响应 `data`：
+
+```ts
+interface SnapshotListResult {
+  items: Snapshot[]
+}
+```
+
+```ts
+interface Snapshot {
+  id: string
+  noteId: string
+  title: string           // 快照类型文案，如 "自动保存" / "恢复前自动保存"
+  noteTitle: string       // 快照时刻的笔记标题
+  content: string         // ProseMirror doc JSON 字符串
+  createdAt: string       // ISO 时间戳
+}
+```
+
+返回顺序：按 `createdAt` 倒序。
+
+权限校验：`noteId` 对应的笔记必须属于当前用户，否则 403。
+
+### 5.3.2 创建
+
+`POST /snapshots`（需要 token）
+
+请求：
+
+```json
+{
+  "noteId": "note_xxx",
+  "title": "自动保存",
+  "noteTitle": "我的笔记",
+  "content": "{\"type\":\"doc\",...}"
+}
+```
+
+响应 `data`：创建后的 `Snapshot`（含服务端生成的 `id` 与 `createdAt`）
+
+后端必须实现双重保留策略（参考前端 `[[快照双重保留策略决策]]`）：
+
+1. **时间上限**：保留 `createdAt` 在 7 天内（`SNAPSHOT_TTL_MS = 7 * 24 * 60 * 60 * 1000`）的快照
+2. **数量上限**：按 `createdAt` 倒序取前 20 条（`MAX_SNAPSHOTS_PER_NOTE = 20`）
+
+两条策略同时应用，取交集。每次 `POST` 后自动清理超限的旧快照。
+
+### 5.3.3 删除单条
+
+`DELETE /snapshots/:id`（需要 token）
+
+响应 `data`：
+
+```json
+{ "success": true }
+```
+
+权限校验：快照必须属于当前用户（通过 `noteId` → `note.user_id` 链路）。
+
+### 5.3.4 清理某笔记全部快照
+
+`DELETE /snapshots?noteId=<id>`（需要 token）
+
+响应 `data`：
+
+```json
+{ "success": true, "deletedCount": 5 }
+```
+
+使用场景：笔记被永久删除时级联调用，清理其全部快照。
+
+### 5.3.5 字段说明
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | 快照唯一标识，后端生成（UUID） |
+| `noteId` | `string` | 所属笔记 id |
+| `title` | `string` | 快照类型文案："自动保存" / "恢复前自动保存" |
+| `noteTitle` | `string` | 快照时刻的笔记标题，用于恢复时覆盖 `note.title` |
+| `content` | `string` | ProseMirror doc JSON 字符串 |
+| `createdAt` | `string` | ISO 时间戳 |
+
+`title` 与 `noteTitle` 的区分：
+
+- `title` — 在历史面板列表展示的「快照类型」文案，由前端写入时给定
+- `noteTitle` — 快照当时的笔记标题，恢复时用于覆盖 `note.title`
+
+---
+
+## 5.4 文件上传 `/uploads`
+
+> 图片/封面上传，2026-07-21 新增。前端将从 base64 改为调本接口返回 URL。
+
+### 5.4.1 上传图片
+
+`POST /uploads/image`（需要 token）
+
+请求：`multipart/form-data`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `file` | File | 图片文件，5MB 上限 |
+
+白名单 MIME：
+
+- `image/jpeg`
+- `image/png`
+- `image/gif`
+- `image/webp`
+
+响应 `data`：
+
+```json
+{
+  "url": "/uploads/{user_id}/{uuid}.{ext}"
+}
+```
+
+返回的 URL 为相对路径，前端拼接 `VITE_API_BASE_URL` 的 origin 后访问。
+
+### 5.4.2 静态访问
+
+`GET /uploads/:path`（无需 token）
+
+后端将上传文件存储到服务器本地磁盘（如 `backend/uploads/{user_id}/{uuid}.{ext}`），并通过静态文件挂载对外提供访问。
+
+权限说明：URL 中包含 `user_id` 路径段，但访问本身不做鉴权（图片可被任何持有 URL 的人访问）。如需私密访问，未来可改为 token 校验或签名 URL。
+
+---
+
 ## 6. 前端分层与使用方式
 
 ```text

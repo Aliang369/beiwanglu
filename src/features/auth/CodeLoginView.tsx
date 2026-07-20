@@ -1,23 +1,27 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Hash, Mail, Send } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useAuthStore } from '../../shared/store/authStore'
 import { AuthInput } from './AuthInput'
-import type { MockUserAccount } from './LoginView'
+import { getAuthErrorMessage } from './authFormUtils'
 
 interface CodeLoginViewProps {
   onBackToPasswordLogin: () => void
   onSwitchToRegister: () => void
-  onAuthenticated: (account: MockUserAccount) => void
+  onAuthenticated: () => void
 }
 
 interface CodeLoginErrors {
   account?: string
   code?: string
+  form?: string
 }
 
 const COUNTDOWN_SECONDS = 60
 
 export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAuthenticated }: CodeLoginViewProps) {
+  const sendCode = useAuthStore((state) => state.sendCode)
+  const loginByCode = useAuthStore((state) => state.loginByCode)
   const [account, setAccount] = useState('')
   const [code, setCode] = useState('')
   const [errors, setErrors] = useState<CodeLoginErrors>({})
@@ -25,8 +29,6 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasSentCode, setHasSentCode] = useState(false)
   const [countdown, setCountdown] = useState(0)
-  const sendTimeoutRef = useRef<number | null>(null)
-  const loginTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (countdown <= 0) {
@@ -37,41 +39,9 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
     return () => window.clearTimeout(timer)
   }, [countdown])
 
-  useEffect(() => {
-    return () => {
-      clearPendingTimeouts()
-    }
-  }, [])
-
-  function clearPendingTimeouts() {
-    clearSendTimeout()
-    clearLoginTimeout()
-  }
-
-  function clearSendTimeout() {
-    if (sendTimeoutRef.current) {
-      window.clearTimeout(sendTimeoutRef.current)
-      sendTimeoutRef.current = null
-    }
-  }
-
-  function clearLoginTimeout() {
-    if (loginTimeoutRef.current) {
-      window.clearTimeout(loginTimeoutRef.current)
-      loginTimeoutRef.current = null
-    }
-  }
-
   function handleAccountChange(value: string) {
     setAccount(value)
-    if (errors.account) {
-      setErrors((current) => ({ ...current, account: undefined }))
-    }
-
-    if (isSending) {
-      clearSendTimeout()
-      setIsSending(false)
-    }
+    setErrors((current) => ({ ...current, account: undefined, form: undefined }))
 
     if (hasSentCode) {
       setHasSentCode(false)
@@ -82,12 +52,10 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
 
   function handleCodeChange(value: string) {
     setCode(value.replace(/\D/g, '').slice(0, 6))
-    if (errors.code) {
-      setErrors((current) => ({ ...current, code: undefined }))
-    }
+    setErrors((current) => ({ ...current, code: undefined, form: undefined }))
   }
 
-  function handleSendCode() {
+  async function handleSendCode() {
     const accountError = validateAccount(account)
 
     if (accountError) {
@@ -97,18 +65,20 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
       return
     }
 
-    clearSendTimeout()
     setErrors({})
     setIsSending(true)
-    sendTimeoutRef.current = window.setTimeout(() => {
-      sendTimeoutRef.current = null
-      setIsSending(false)
+    try {
+      await sendCode({ account: account.trim(), scene: 'login' })
       setHasSentCode(true)
       setCountdown(COUNTDOWN_SECONDS)
-    }, 450)
+    } catch (error) {
+      setErrors({ form: getAuthErrorMessage(error, '验证码发送失败') })
+    } finally {
+      setIsSending(false)
+    }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!hasSentCode) {
@@ -136,24 +106,14 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
 
     setErrors({})
     setIsSubmitting(true)
-    loginTimeoutRef.current = window.setTimeout(() => {
-      loginTimeoutRef.current = null
+    try {
+      await loginByCode({ account: account.trim(), code })
+      onAuthenticated()
+    } catch (error) {
+      setErrors({ form: getAuthErrorMessage(error, '验证码登录失败') })
+    } finally {
       setIsSubmitting(false)
-      const value = account.trim()
-      const isEmail = value.includes('@')
-      onAuthenticated({
-        account: value,
-        name: isEmail ? value.split('@')[0] : value,
-        email: isEmail ? value : `${value}@example.com`,
-        bio: '',
-        avatarUrl: null,
-      })
-    }, 450)
-  }
-
-  function handleBackToPasswordLogin() {
-    clearPendingTimeouts()
-    onBackToPasswordLogin()
+    }
   }
 
   const canResend = countdown === 0 && !isSending
@@ -164,7 +124,7 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
       <div>
         <button
           type="button"
-          onClick={handleBackToPasswordLogin}
+          onClick={onBackToPasswordLogin}
           aria-label="返回密码登录"
           className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full p-2 font-label-md text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary"
         >
@@ -173,11 +133,11 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
         </button>
         <div className="pt-8 text-center">
           <h1 className="font-headline-lg text-headline-lg text-on-surface">验证码登录</h1>
-          <p className="mt-2 font-body-md text-body-md text-on-surface-variant">输入手机号或邮箱，我们会模拟发送 6 位验证码。</p>
+          <p className="mt-2 font-body-md text-body-md text-on-surface-variant">输入手机号或邮箱获取 6 位验证码（Mock 固定为 123456）。</p>
         </div>
       </div>
 
-      <form className="flex w-full flex-col gap-stack-md" onSubmit={handleSubmit} noValidate>
+      <form className="flex w-full flex-col gap-stack-md" onSubmit={(event) => void handleSubmit(event)} noValidate>
         <AuthInput
           label="手机号或邮箱"
           value={account}
@@ -191,7 +151,7 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
 
         <button
           type="button"
-          onClick={handleSendCode}
+          onClick={() => void handleSendCode()}
           disabled={!canResend || isSubmitting}
           className="flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant/40 bg-surface px-4 py-3 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -205,7 +165,7 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
               <div>
                 <p className="font-label-md text-label-md text-on-surface">验证码已发送</p>
-                <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">这是模拟验证码流程，不会发送真实短信或邮件。</p>
+                <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">开发 Mock 模式下验证码为 123456。</p>
               </div>
             </div>
           </div>
@@ -223,6 +183,12 @@ export function CodeLoginView({ onBackToPasswordLogin, onSwitchToRegister, onAut
             disabled={isSubmitting}
             autoComplete="one-time-code"
           />
+        ) : null}
+
+        {errors.form ? (
+          <p className="px-2 font-label-sm text-label-sm text-error" role="alert">
+            {errors.form}
+          </p>
         ) : null}
 
         <button

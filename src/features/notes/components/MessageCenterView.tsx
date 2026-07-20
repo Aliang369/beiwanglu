@@ -1,6 +1,7 @@
-import { Archive, Bell, CheckCheck, Settings2, ShieldCheck, Sparkles, UsersRound, Wrench } from 'lucide-react'
+import { Archive, Bell, CheckCheck, Settings2, ShieldCheck, Sparkles, UsersRound, Wrench, X } from 'lucide-react'
 import { useState, type ComponentType } from 'react'
-import { messageItems, type MessageItem, type MessageType } from './messageMockData'
+import { useMessagesStore } from '../../../shared/store/messagesStore'
+import type { MessageItem, MessageType, NotificationSettings } from '../../../shared/types/message'
 
 interface MessageCenterViewProps {
   onMessageOpen?: (message: MessageItem) => void
@@ -21,9 +22,52 @@ const filters: Array<{ value: MessageFilter; label: string }> = [
   { value: 'security', label: '账户安全' },
 ]
 
+const settingLabels: Array<{ key: keyof NotificationSettings; label: string; description: string }> = [
+  { key: 'systemEnabled', label: '系统通知', description: '产品更新与系统公告' },
+  { key: 'securityEnabled', label: '安全通知', description: '登录与账户安全提醒' },
+  { key: 'contentEnabled', label: '内容通知', description: '协作与共享相关提醒' },
+  { key: 'emailEnabled', label: '邮件通知', description: '同时发送到注册邮箱' },
+]
+
 export function MessageCenterView({ onMessageOpen }: MessageCenterViewProps) {
+  const items = useMessagesStore((state) => state.items)
+  const isLoading = useMessagesStore((state) => state.isLoading)
+  const error = useMessagesStore((state) => state.error)
+  const settings = useMessagesStore((state) => state.settings)
+  const source = useMessagesStore((state) => state.source)
+  const markAllRead = useMessagesStore((state) => state.markAllRead)
+  const updateSettings = useMessagesStore((state) => state.updateSettings)
+  const load = useMessagesStore((state) => state.load)
+  const clearError = useMessagesStore((state) => state.clearError)
+
   const [activeFilter, setActiveFilter] = useState<MessageFilter>('all')
-  const filteredMessages = activeFilter === 'all' ? messageItems : messageItems.filter((message) => message.category === activeFilter)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isMarkingAll, setIsMarkingAll] = useState(false)
+
+  const filteredMessages =
+    activeFilter === 'all' ? items : items.filter((message) => message.category === activeFilter)
+
+  async function handleMarkAllRead() {
+    setActionError(null)
+    setIsMarkingAll(true)
+    try {
+      await markAllRead()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : '全部标为已读失败')
+    } finally {
+      setIsMarkingAll(false)
+    }
+  }
+
+  async function handleToggleSetting(key: keyof NotificationSettings) {
+    setActionError(null)
+    try {
+      await updateSettings({ [key]: !settings[key] })
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : '通知设置保存失败')
+    }
+  }
 
   return (
     <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto bg-surface-container-lowest p-gutter">
@@ -31,24 +75,78 @@ export function MessageCenterView({ onMessageOpen }: MessageCenterViewProps) {
         <div className="mb-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="font-headline-lg text-headline-lg text-on-background">消息中心</h2>
-            <p className="mt-1 font-body-md text-body-md text-on-surface-variant">查看系统通知与账户动态。</p>
+            <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
+              {source === 'guest' ? '未登录：本地演示消息，写操作仅保存在当前会话。' : '已登录：消息来自远端 API / Mock。'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* TODO: 接入真实已读状态。 */}
-            <button type="button" className="flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low">
+            <button
+              type="button"
+              onClick={() => void handleMarkAllRead()}
+              disabled={isMarkingAll || isLoading}
+              className="flex items-center gap-2 rounded-lg border border-outline-variant px-4 py-2 font-label-md text-label-md text-primary transition-colors hover:bg-surface-container-low disabled:cursor-wait disabled:opacity-70"
+            >
               <CheckCheck className="size-[18px]" />
-              全部标为已读
+              {isMarkingAll ? '处理中...' : '全部标为已读'}
             </button>
-            {/* TODO: 接入通知设置。 */}
-            <button type="button" aria-label="Notification Settings" className="flex size-10 items-center justify-center rounded-lg bg-surface-container-low text-on-surface transition-colors hover:bg-surface-container">
+            <button
+              type="button"
+              aria-label="通知设置"
+              onClick={() => setSettingsOpen((open) => !open)}
+              className="flex size-10 items-center justify-center rounded-lg bg-surface-container-low text-on-surface transition-colors hover:bg-surface-container"
+            >
               <Settings2 className="size-5" />
             </button>
           </div>
         </div>
 
+        {settingsOpen ? (
+          <section className="rounded-xl border border-outline-variant/40 bg-surface p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="font-headline-sm text-headline-sm text-on-surface">通知设置</h3>
+              <button type="button" onClick={() => setSettingsOpen(false)} className="rounded-full p-1 text-on-surface-variant hover:bg-surface-container-low" aria-label="关闭通知设置">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {settingLabels.map((item) => (
+                <label key={item.key} className="flex cursor-pointer items-start gap-3 rounded-lg border border-outline-variant/30 bg-surface-container-lowest px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={settings[item.key]}
+                    onChange={() => void handleToggleSetting(item.key)}
+                    className="mt-1 size-4 rounded border-outline text-primary focus:ring-primary"
+                  />
+                  <span>
+                    <span className="block font-label-md text-label-md text-on-surface">{item.label}</span>
+                    <span className="mt-0.5 block font-label-sm text-label-sm text-on-surface-variant">{item.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {(error || actionError) ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error/30 bg-error-container/20 px-4 py-3" role="alert">
+            <p className="font-label-md text-label-md text-error">{actionError ?? error}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setActionError(null)
+                clearError()
+                void load(source === 'api')
+              }}
+              className="rounded-full border border-error/40 px-3 py-1 font-label-sm text-label-sm text-error"
+            >
+              重试
+            </button>
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-6 border-b border-outline-variant/50">
           {filters.map((filter) => {
-            const count = filter.value === 'all' ? messageItems.length : messageItems.filter((message) => message.category === filter.value).length
+            const count = filter.value === 'all' ? items.length : items.filter((message) => message.category === filter.value).length
             const active = activeFilter === filter.value
 
             return (
@@ -67,7 +165,11 @@ export function MessageCenterView({ onMessageOpen }: MessageCenterViewProps) {
         </div>
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto pb-12">
-          {filteredMessages.length > 0 ? (
+          {isLoading && items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <p className="font-body-md text-body-md text-on-surface-variant">正在加载消息...</p>
+            </div>
+          ) : filteredMessages.length > 0 ? (
             filteredMessages.map((message) => <MessageCard key={message.id} message={message} onOpen={onMessageOpen} />)
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center">
