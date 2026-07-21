@@ -39,16 +39,16 @@
 | 登录 | 可用 | 密码登录走 Auth store + Mock/Real API。 | `LoginView.tsx`, `authStore.ts` |
 | 注册 | 可用 | 注册后回登录页，不自动登录。 | `RegisterView.tsx`, `authApi.ts` |
 | 退出登录 | 可用 | `logout` 清 token/user。 | `NotesHome.tsx`, `authStore.ts` |
-| 云端同步 | 部分可用 | 登录默认同步 + LWW；SQLite 或 localStorage 回退均可。 | `src/shared/sync/` |
-| 设置页 | 部分可用 | 资料/改密/同步开关已接（含回退后端提示）。 | `SettingsView.tsx` |
+| 云端同步 | 可用 | 登录默认同步 + LWW；队列重试；自动触发；设置页状态/失败可重试。 | `src/shared/sync/` |
+| 设置页 | 部分可用 | 资料/改密/同步/导入导出已接；帮助仍为原型。 | `SettingsView.tsx` |
 | 帮助页 | 原型 | 静态帮助内容。 | `HelpView.tsx` |
 | 编辑器信息面板 | 部分可用 | 展示笔记信息 + 置顶/只读开关。 | `EditorInfoPanel.tsx` |
 | Web 开发服务 | 可用 | Vite 固定端口 5173。 | `vite.config.ts` |
-| Tauri 桌面壳 | 基础可用 | 桌面开发和打包基础壳。 | `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs` |
-| SQLite 数据源 | 部分可用 | Web sql.js + localStorage 回退；桌面原生适配未完成。 | `src/shared/data/sqlite/`、`localBackend.ts` |
+| Tauri 桌面壳 | 可用 | 图标/CSP/原生 SQLite command/托盘菜单/导入导出。 | `src-tauri/` |
+| SQLite 数据源 | 可用 | Web sql.js 或桌面原生 SQLite；失败回退 localStorage。 | `src/shared/data/sqlite/`、`localBackend.ts` |
 | 移动端数据源 | 部分可用 | 统一 SQLite 入口；原生驱动未接。 | `mobileNotesRepository.ts` |
 | API 基建层 | 可用 | HTTP 客户端、统一响应、Mock/Real 切换、模块 API。 | `src/shared/api/*`, `docs/api-contract.md` |
-| Auth store | 可用 | token/user 恢复；登录/注册/退出已接通 UI；设置页改密。 | `authStore.ts`, `authApi.ts`, `features/auth/*` |
+| Auth store | 可用 | access/refresh 恢复；登录/注册/退出；401 自动续期；设置页改密。 | `authStore.ts`, `authApi.ts`, `httpClient.ts` |
 | 远程笔记 API | 可用 | `notesApi` + `apiNotesRepository` 作同步推拉；业务读写本机 SQLite/localStorage 回退。 | `notesApi.ts`, `apiNotesRepository.ts`, `src/shared/sync/` |
 | 后端服务 | 可用 | FastAPI + MySQL `beiwanglu`，本地端到端；前端 `VITE_API_MODE=real` 可联调。 | `backend/` |
 
@@ -66,8 +66,7 @@
 
 可选后续：
 
-- Refresh Token 自动续期。
-- 隐私协议和服务条款实际内容。
+- 隐私协议和服务条款正式法务文本。
 
 ### 消息系统
 
@@ -87,7 +86,7 @@
 
 全部已完成：
 
-- 独立 `Folder` 模型 + `localStorage` v4 持久化。
+- 独立 `Folder` 模型 + 本机仓储持久化（SQLite/sql.js 或 localStorage 回退）。
 - 创建 / 重命名 / 移动 / 删除完整持久化。
 - 删除时子文件夹一并删除，夹内笔记改为未分类（`folderId=null`），不进废纸篓。
 - 仅支持一层子文件夹（`assertValidParentId` 等校验在 `folderDomain.ts`）。
@@ -117,15 +116,19 @@
 - 导出 PNG 长图（html2canvas-pro）。
 - 导出 PDF（jsPDF，A4 自动分页）。
 - 导出 Word(.docx)（docx 库遍历 ProseMirror JSON）。
+- JSON 备份导出（设置页：全部未删除笔记）。
 - 版本历史基于快照系统：每笔记最多 20 条 + 7 天 TTL，支持预览与恢复。
 
 ## 明确未做
 
 以下能力当前没有实现或仅部分完成（完整盘点见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)）：
 
-- **本地优先同步**：业务读写本机（SQLite 优先，失败回退 localStorage）；登录默认同步 LWW；稳健性（重试/字段级冲突）仍待增强。
-- **Refresh Token**：当前只保存 `accessToken`，过期后需要重新登录。
-- **多端同步增强**：一期 LWW 已通（SQLite/回退双路径）；缺更强离线队列与字段级冲突。
+- **帮助页**：仍为静态原型，无真实文章。
+- **公开链接 / 分享**：入口预留，未实现。
+- **组件测试 / E2E**：仅有 shared 纯逻辑 Vitest + CI 门禁。
+- **移动端原生 SQLite 驱动**：统一入口已有，原生未接。
+- **P4/P5**：消息实时推送、桌面原生通知、自动更新、签名公证等。
+- **字段级冲突 / E2E 加密**：按产品定位不做完整 CRDT 与加密存储。
 - **任意深度文件夹嵌套**：`folderDomain.ts` 强制一层子文件夹。
 - **自动化测试**：仓库未引入测试框架，`shared/notes/` 纯逻辑和 repository 暂无单测覆盖。
 

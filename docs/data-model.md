@@ -397,28 +397,29 @@ src/shared/api/tokenStorage.ts
 存储 key：
 
 ```text
-beiwanglu.auth.accessToken  // 访问令牌
-beiwanglu.auth.user         // User 对象 JSON 缓存
+beiwanglu.auth.accessToken   // 访问令牌（约 15 分钟）
+beiwanglu.auth.refreshToken  // 刷新令牌（约 30 天）
+beiwanglu.auth.user          // User 对象 JSON 缓存
 ```
 
 行为说明：
 
-- `getAccessToken` / `setAccessToken` / `clearAccessToken`：读写访问令牌。
+- `getAccessToken` / `setAccessToken` / `clearAccessToken`：读写 access。
+- `getRefreshToken` / `setRefreshToken` / `clearRefreshToken`：读写 refresh。
 - `getCachedUserJson` / `setCachedUserJson` / `clearCachedUser`：读写用户信息缓存。
-- `clearAuthStorage`：登出时一次性清空两个 key。
+- `clearAuthStorage`：登出时清空 access、refresh 与 user 缓存。
 
-`useAuthStore.hydrate()` 在应用启动时从这两个 key 恢复登录态。当前没有 Refresh Token，令牌过期需重新登录。
+`useAuthStore.hydrate()` 在应用启动时恢复登录态。`httpClient` 在鉴权 401 时自动用 refresh 续期一次；refresh 失败则清会话。
 
 ## 当前限制
 
-- 没有数据版本号字段（存储结构有 `version: 4`，但单条 Note/Folder 没有 schema 版本）。
-- 没有 schema migration 框架（迁移逻辑写在 `WebNotesRepository` 内）。
-- Folder 模型已落地，但仅支持一层子文件夹。
+- 没有数据版本号字段（localStorage 结构有 `version: 4`，但单条 Note/Folder 没有 schema 版本）。
+- Folder 仅支持一层子文件夹。
 - 本机库无 user 维度分表（单端本机一份）；登录后云端按 user 隔离，经同步引擎对齐。
-- 没有同步或冲突解决。
-- 没有加密存储。
-- SQLite 和移动端 repository 只是类型别名占位。
-- 快照：本机 SQLite 或 localStorage；云端经同步引擎/`snapshotsApi` 推拉。
+- 冲突策略为 last-write-wins，无字段级合并 / 人工选版本。
+- 没有加密存储（产品定位）。
+- 移动端原生 SQLite 驱动未接（Web sql.js / 桌面原生已可用）。
+- 快照：本机 SQLite（sql.js 或桌面原生）或 localStorage 回退；云端经同步引擎推拉。
 
 ## 后续扩展建议
 
@@ -441,24 +442,20 @@ interface NotesStorageV4 {
 
 定义位置：`src/shared/types/folder.ts`，规则如上"Folder"章节。当前限制是一层子文件夹，后续可放宽 `assertValidParentId` / `canMoveFolder` 等校验以支持任意深度嵌套。
 
-### 替换为 SQLite
+### 本机 SQLite
 
-如果桌面端需要更可靠的本地存储，可以把：
+- Web：`sql.js`（`src/shared/data/sqlite/`），失败回退 `webNotesRepository`。
+- 桌面：Tauri 原生 SQLite 文件（app data），经 `native_db_*` command；失败回退 sql.js。
+- 接口：`NotesRepository` / `SnapshotsRepository`；`NotesHome` 启动时 `setRepository` / `setSnapshotsRepository`。
 
-```text
-src/shared/data/sqliteNotesRepository.ts
-```
+### 远程 API 与同步
 
-从类型别名替换为真实实现，并保持 `NotesRepository` 接口不变，使 UI 层无需调整。注入方式参考 `NotesHome` 的 `setRepository()` 调用。
+`apiNotesRepository.ts` / `notesApi` 作同步推拉通道。本地→云端 LWW + 队列重试已产品化（见 `src/shared/sync/`）。
 
-### 接入远程 API
+后续可选增强（非阻塞主路径）：
 
-`apiNotesRepository.ts` 作为同步推拉通道；本地→云端 LWW 一期已通（SQLite 队列 / localStorage 回退直连）。后续需增强：
-
-- 认证状态过期与刷新（Refresh Token）。
-- 网络错误与重试。
-- 乐观更新与回滚。
-- 离线缓存与冲突解决。
-- 本地到云端的一次性数据迁移。
+- 字段级冲突 UI（当前不做）。
+- 更细粒度乐观更新与回滚。
+- 移动端原生驱动。
 
 未完成项总表见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。

@@ -94,9 +94,10 @@ Authorization: Bearer <accessToken>
 
 - 前端存储：`localStorage`
   - `beiwanglu.auth.accessToken`
+  - `beiwanglu.auth.refreshToken`
   - `beiwanglu.auth.user`（用户信息缓存 JSON）
 
-- 本期不做 Refresh Token；token 失效后由客户端清理会话并引导重新登录（UI 接入阶段实现）。
+- 已实现 Refresh Token：`POST /auth/refresh` 轮换；`httpClient` 在 401 时自动续期一次，失败则清会话。
 
 ### 1.6 时间与 ID
 
@@ -577,23 +578,21 @@ Auth store 能力：
 
 - 环境配置与 mock/real 切换（`VITE_API_MODE`）
 - HTTP 客户端与统一错误处理（`httpClient.ts` + 统一响应体 `{code,message,data}`）
-- Token 存储与 Auth store（`tokenStorage.ts` + `authStore.ts`：hydrate/login/register/fetchMe/logout/setSession/clearSession）
+- Token 存储与 Auth store（access/refresh；hydrate/login/register/fetchMe/logout；httpClient 自动 refresh）
 - 模块 API：`authApi` / `messagesApi` / `userApi` / `notesApi` / 快照与上传等
 - `ApiNotesRepository` 实现 `NotesRepository`；供同步引擎推拉，非登录硬切业务源
 - 账号 / 消息 / 设置 UI 已接通 Mock 与 Real（视环境变量）
 - 本地 FastAPI + MySQL（库名 `beiwanglu`）端到端已跑通
 
-**明确未做**
+**已完成（同步与会话）**
 
-- **笔记从 localStorage 迁移到远端**：仓储可切换，但无一次性迁移与冲突合并
-- Refresh Token / Cookie Session
-- 多端同步稳健性增强（一期 LWW 双路径已通）
+- Refresh Token + 自动续期
+- 本地优先 + LWW 同步引擎（队列重试、登录/回前台/online/写入防抖触发）
+- localStorage → SQLite 启动迁移；登录后与云端 LWW 合并
+
+**明确未做 / 范围外**
+
+- 字段级冲突 UI、端到端加密存储（产品定位）
+- 消息实时推送（P4）、自动更新与签名公证（P5）
 
 > 注：将 `VITE_API_MODE=real` 并启动后端即可联调；默认 Mock 仍可独立开发 UI。完整预留清单见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。
-
-后端接口就绪后，建议接入顺序：
-
-1. 将 `VITE_API_MODE=real`，联调 `/auth/*`，验证账号 UI 真实流程
-2. 接通消息与用户资料真实数据
-3. 在本地优先 + 同步引擎一期基础上强化迁移稳健性与冲突策略
-4. 评估离线缓存与冲突解决
