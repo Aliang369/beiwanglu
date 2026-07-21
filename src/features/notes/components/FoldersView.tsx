@@ -43,6 +43,7 @@ interface FoldersViewProps {
   onRenameFolder?: (folderId: string, name: string) => void | Promise<void>
   onMoveFolders?: (folderIds: string[], parentId: string | null) => void | Promise<void>
   onDeleteFolders?: (folderIds: string[]) => void | Promise<void>
+  onCreateNote?: (folderId: string | null) => void | Promise<void>
 }
 
 export function FoldersView({
@@ -66,6 +67,7 @@ export function FoldersView({
   onRenameFolder,
   onMoveFolders,
   onDeleteFolders,
+  onCreateNote,
 }: FoldersViewProps) {
   const [viewMode, setViewMode] = useState<NoteViewMode>('grid')
   const [detailViewMode, setDetailViewMode] = useState<NoteViewMode>('grid')
@@ -315,8 +317,15 @@ export function FoldersView({
   const canDeleteSelected = selectedVisibleIds.length > 0
   const canMoveSelected = selectedVisibleIds.length > 0
 
-  const createLabel = activeFolder && !isActiveChild ? '新建子文件夹' : '新建文件夹'
+  const createFolderLabel = activeFolder && !isActiveChild ? '新建子文件夹' : '新建文件夹'
   const deletingNames = (deletingFolderIds ?? []).map((id) => folderItemMap.get(id)?.name ?? id)
+
+  function handleCreateNoteInActiveFolder() {
+    if (!activeFolderId || !onCreateNote) {
+      return
+    }
+    void onCreateNote(activeFolderId)
+  }
 
   const listSection = (items: FolderItem[], allowCreate: boolean, mode: NoteViewMode = viewMode) => {
     if (mode === 'list') {
@@ -336,7 +345,7 @@ export function FoldersView({
               onDelete={(folderId) => openDelete([folderId])}
             />
           ))}
-          {allowCreate && !selectionMode ? <DashedCreate layout="list" label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
+          {allowCreate && !selectionMode ? <DashedCreate layout="list" label={createFolderLabel} onClick={() => setCreateOpen(true)} /> : null}
         </div>
       )
     }
@@ -357,7 +366,7 @@ export function FoldersView({
             onDelete={(folderId) => openDelete([folderId])}
           />
         ))}
-        {allowCreate ? <DashedCreate layout="card" label={createLabel} disabled={selectionMode} onClick={() => setCreateOpen(true)} /> : null}
+        {allowCreate ? <DashedCreate layout="card" label={createFolderLabel} disabled={selectionMode} onClick={() => setCreateOpen(true)} /> : null}
       </div>
     )
   }
@@ -368,6 +377,7 @@ export function FoldersView({
     const hasFolders = foldersToShow.length > 0
     const hasNotes = activeFolderNotes.length > 0
     const allowCreateChild = showChildren && !selectionMode
+    const allowCreateNote = Boolean(onCreateNote) && !selectionMode
     const isEmpty = !hasFolders && !hasNotes
 
     if (isEmpty) {
@@ -386,10 +396,25 @@ export function FoldersView({
               <EmptyState
                 icon={FileText}
                 title="这个文件夹还是空的"
-                description={showChildren ? '可以在这里新建子文件夹，或把笔记归类进来。' : '归类到这里的笔记会显示在这个页面。'}
+                description={
+                  showChildren
+                    ? '可以在这里新建笔记、新建子文件夹，或把笔记归类进来。'
+                    : '可以在这里新建笔记，或把笔记归类进来。'
+                }
                 variant="folders"
                 compact
-                primaryAction={showChildren ? { label: createLabel, onClick: () => setCreateOpen(true) } : undefined}
+                primaryAction={
+                  allowCreateNote
+                    ? { label: '新建笔记', onClick: handleCreateNoteInActiveFolder }
+                    : showChildren
+                      ? { label: createFolderLabel, onClick: () => setCreateOpen(true) }
+                      : undefined
+                }
+                secondaryAction={
+                  allowCreateNote && showChildren
+                    ? { label: createFolderLabel, onClick: () => setCreateOpen(true) }
+                    : undefined
+                }
               />
             }
           />
@@ -427,7 +452,8 @@ export function FoldersView({
               {...noteActions}
             />
           ))}
-          {allowCreateChild ? <DashedCreate layout="list" label={createLabel} onClick={() => setCreateOpen(true)} /> : null}
+          {allowCreateNote ? <DashedCreate layout="list" label="新建笔记" onClick={handleCreateNoteInActiveFolder} /> : null}
+          {allowCreateChild ? <DashedCreate layout="list" label={createFolderLabel} onClick={() => setCreateOpen(true)} /> : null}
         </div>
       )
     }
@@ -459,7 +485,8 @@ export function FoldersView({
             {...noteActions}
           />
         ))}
-        {showChildren ? <DashedCreate layout="card" label={createLabel} disabled={selectionMode} onClick={() => setCreateOpen(true)} /> : null}
+        {allowCreateNote ? <DashedCreate layout="card" label="新建笔记" disabled={selectionMode} onClick={handleCreateNoteInActiveFolder} /> : null}
+        {showChildren ? <DashedCreate layout="card" label={createFolderLabel} disabled={selectionMode} onClick={() => setCreateOpen(true)} /> : null}
       </div>
     )
   }
@@ -557,7 +584,7 @@ export function FoldersView({
             description={
               <>
                 将删除 {deletingNames.join('、')}。
-                <span className="mt-1 block text-error">子文件夹会一并删除，其中的笔记会进入废纸篓。</span>
+                <span className="mt-1 block text-error">子文件夹会一并删除，其中的笔记会变为未分类（不会进入废纸篓）。</span>
               </>
             }
             confirmLabel="删除文件夹"
@@ -644,7 +671,7 @@ export function FoldersView({
           description={
             <>
               将删除 {deletingNames.join('、')}。
-              <span className="mt-1 block text-error">子文件夹会一并删除，其中的笔记会进入废纸篓。</span>
+              <span className="mt-1 block text-error">子文件夹会一并删除，其中的笔记会变为未分类（不会进入废纸篓）。</span>
             </>
           }
           confirmLabel="删除文件夹"

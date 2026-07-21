@@ -13,29 +13,14 @@ class RegisterRequest(BaseModel):
     name: str | None = Field(None, max_length=64, description="昵称（可选）")
 
 
-class SendCodeRequest(BaseModel):
-    account: str = Field(..., min_length=1, max_length=128)
-    scene: str = Field("login", description="login | register | reset_password")
-
-
-class LoginByCodeRequest(BaseModel):
-    account: str = Field(..., min_length=1, max_length=128)
-    code: str = Field(..., min_length=4, max_length=8)
-
-
-class ResetPasswordRequest(BaseModel):
-    account: str = Field(..., min_length=1, max_length=128)
-    code: str = Field(..., min_length=4, max_length=8)
-    new_password: str = Field(..., min_length=6, max_length=128, alias="newPassword")
-
-    model_config = {"populate_by_name": True}
+class RefreshRequest(BaseModel):
+    refreshToken: str = Field(..., min_length=10, max_length=512)
 
 
 class UserSchema(BaseModel):
     id: str
     account: str
     name: str
-    email: str
     bio: str
     avatarUrl: str | None = None
     createdAt: str
@@ -44,13 +29,10 @@ class UserSchema(BaseModel):
 
 class AuthSessionSchema(BaseModel):
     accessToken: str
+    refreshToken: str
     tokenType: str = "Bearer"
     expiresIn: int
     user: UserSchema
-
-
-class SendCodeResponse(BaseModel):
-    expiresIn: int = 300
 
 
 class SuccessResponse(BaseModel):

@@ -1,6 +1,5 @@
 import type {
   ChangePasswordRequest,
-  SecuritySettings,
   UpdateProfileRequest,
   UserProfile,
 } from '../../types/userProfile'
@@ -11,16 +10,10 @@ let profile: UserProfile = {
   id: 'user_demo_001',
   account: 'demo',
   name: '灵感用户',
-  email: 'demo@example.com',
   bio: '本地 Mock 用户',
   avatarUrl: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
-}
-
-let security: SecuritySettings = {
-  twoFactorEnabled: false,
-  lastPasswordChangedAt: null,
 }
 
 export const mockUserApi = {
@@ -39,11 +32,6 @@ export const mockUserApi = {
     return { ...profile }
   },
 
-  async getSecuritySettings(): Promise<SecuritySettings> {
-    await delay(100)
-    return { ...security }
-  },
-
   async changePassword(payload: ChangePasswordRequest): Promise<{ success: true }> {
     await delay()
     if (!payload.currentPassword || !payload.newPassword) {
@@ -54,10 +42,6 @@ export const mockUserApi = {
     }
     if (payload.currentPassword === payload.newPassword) {
       throw new ApiError({ kind: 'business', code: 40003, message: '新密码不能与当前密码相同' })
-    }
-    security = {
-      ...security,
-      lastPasswordChangedAt: new Date().toISOString(),
     }
     return { success: true }
   },

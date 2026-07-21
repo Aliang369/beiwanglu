@@ -274,6 +274,28 @@ export class WebNotesRepository implements NotesRepository {
     return notes.filter((note) => note.id !== 'trash-test-note')
   }
 
+  /** 同步引擎：按完整 Note 写入/覆盖（保留远端/合并后的 id 与时间戳）。 */
+  async upsertNote(note: Note): Promise<Note> {
+    const data = this.read()
+    const index = data.notes.findIndex((item) => item.id === note.id)
+    const notes = data.notes.slice()
+    if (index >= 0) notes[index] = note
+    else notes.unshift(note)
+    this.write({ ...data, notes, updatedAt: note.updatedAt })
+    return note
+  }
+
+  /** 同步引擎：按完整 Folder 写入/覆盖。 */
+  async upsertFolder(folder: Folder): Promise<Folder> {
+    const data = this.read()
+    const index = data.folders.findIndex((item) => item.id === folder.id)
+    const folders = data.folders.slice()
+    if (index >= 0) folders[index] = folder
+    else folders.unshift(folder)
+    this.write({ ...data, folders: normalizeFolders(folders), updatedAt: folder.updatedAt })
+    return folder
+  }
+
   private write(data: NotesStorageV4) {
     const payload: NotesStorageV4 = { ...data, version: 4 }
     this.storage.setItem(STORAGE_KEY_V4, JSON.stringify(payload))

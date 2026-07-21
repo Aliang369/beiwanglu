@@ -154,8 +154,15 @@ def get_note(db: Session, user_id: str, note_id: str) -> dict:
 def create_note(db: Session, user_id: str, draft: NoteDraftRequest) -> dict:
     """创建。"""
     content = draft.content if draft.content else EMPTY_DOC_JSON
+    note_id = draft.id or str(uuid.uuid4())
+    if draft.id:
+        existing = db.get(Note, draft.id)
+        if existing:
+            if existing.user_id != user_id:
+                raise BusinessError(BizCode.BIZ_CONFLICT, "笔记 ID 冲突")
+            return existing.to_dict()
     note = Note(
-        id=str(uuid.uuid4()),
+        id=note_id,
         user_id=user_id,
         title=draft.title or "",
         content=content,
@@ -207,7 +214,8 @@ def update_note(
     if patch.tags is not None:
         note.tags = [t.model_dump() for t in patch.tags]
         changed = True
-    if patch.folderId is not None:
+    # folderId 显式传入 null 表示未分类；未传字段则不改
+    if "folderId" in patch.model_fields_set:
         note.folder_id = patch.folderId
         changed = True
     if patch.isFavorite is not None:
@@ -294,16 +302,30 @@ def list_folders(db: Session, user_id: str) -> list[dict]:
     return [f.to_dict() for f in folders]
 
 
-def create_folder(db: Session, user_id: str, name: str, icon: str, parent_id: str | None) -> dict:
-    """创建。"""
+def create_folder(
+    db: Session,
+    user_id: str,
+    name: str,
+    icon: str,
+    parent_id: str | None,
+    folder_id: str | None = None,
+) -> dict:
+    """创建。可选 folder_id 保留客户端主键（本地优先同步）。"""
     if icon not in VALID_FOLDER_ICONS:
         icon = "folder"
     _assert_valid_parent(db, user_id, parent_id)
     if _has_name_conflict(db, user_id, name, parent_id):
         raise BusinessError(BizCode.BIZ_CONFLICT, "同级已存在同名文件夹")
 
+    if folder_id:
+        existing = db.get(Folder, folder_id)
+        if existing:
+            if existing.user_id != user_id:
+                raise BusinessError(BizCode.BIZ_CONFLICT, "文件夹 ID 冲突")
+            return existing.to_dict()
+
     folder = Folder(
-        id=str(uuid.uuid4()),
+        id=folder_id or str(uuid.uuid4()),
         user_id=user_id,
         name=name,
         icon=icon,
@@ -328,8 +350,6 @@ def update_folder(
     folder = db.get(Folder, folder_id)
     if not folder or folder.user_id != user_id:
         raise BusinessError(BizCode.NOT_FOUND, "文件夹不存在")
-    if folder.is_inbox:
-        raise BusinessError(BizCode.BIZ_CONFLICT, "inbox 文件夹不可修改")
 
     if parent_id is not None:
         _assert_valid_parent(db, user_id, parent_id)
@@ -347,6 +367,10 @@ def update_folder(
     if parent_id is not None:
         folder.parent_id = parent_id
 
+    # 历史 inbox 一旦被用户修改，降级为普通文件夹
+    if folder.is_inbox:
+        folder.is_inbox = False
+
     folder.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(folder)
@@ -357,9 +381,9 @@ def delete_folders(db: Session, user_id: str, ids: list[str]) -> None:
     """批量删除文件夹。
 
     业务规则：
-    - inbox 受保护不可删
+    - 所有文件夹均可删除（含历史 inbox）
     - 删除文件夹会一并删除其直接子文件夹
-    - 文件夹中的笔记移入废纸篓（folderId 置 null, is_deleted=true）
+    - 夹内笔记改为未分类（folderId 置 null，不进废纸篓）
     """
     if not ids:
         return
@@ -369,9 +393,8 @@ def delete_folders(db: Session, user_id: str, ids: list[str]) -> None:
         .filter(Folder.user_id == user_id, Folder.id.in_(ids))
         .all()
     )
-    for folder in folders:
-        if folder.is_inbox:
-            raise BusinessError(BizCode.BIZ_CONFLICT, "inbox 文件夹不可删除")
+    if not folders:
+        return
 
     # 收集要删除的全部文件夹 id（含子文件夹）
     to_delete_ids: set[str] = set()
@@ -381,23 +404,47 @@ def delete_folders(db: Session, user_id: str, ids: list[str]) -> None:
         if f.id in to_delete_ids:
             continue
         to_delete_ids.add(f.id)
-        # 找直接子文件夹
         children = db.query(Folder).filter(Folder.user_id == user_id, Folder.parent_id == f.id).all()
         queue.extend(children)
 
-    # 把这些文件夹下的笔记移入废纸篓
+    # 夹内笔记改为未分类，保留笔记本身
     now = datetime.now(timezone.utc)
-    notes_to_trash = (
+    notes_to_uncategorize = (
         db.query(Note)
         .filter(Note.user_id == user_id, Note.folder_id.in_(list(to_delete_ids)))
         .all()
     )
-    for note in notes_to_trash:
+    for note in notes_to_uncategorize:
         note.folder_id = None
-        note.is_deleted = True
-        note.deleted_at = now
         note.updated_at = now
 
-    # 删除文件夹
     db.query(Folder).filter(Folder.id.in_(list(to_delete_ids))).delete(synchronize_session=False)
     db.commit()
+
+
+def cleanup_legacy_inbox(db: Session, user_id: str) -> dict:
+    """存量清理：inbox 内笔记改未分类，再删除 inbox 文件夹。"""
+    inbox_folders = (
+        db.query(Folder)
+        .filter(Folder.user_id == user_id, Folder.is_inbox.is_(True))
+        .all()
+    )
+    if not inbox_folders:
+        return {"cleaned": 0, "notesUncategorized": 0}
+
+    now = datetime.now(timezone.utc)
+    notes_moved = 0
+    for folder in inbox_folders:
+        notes = db.query(Note).filter(Note.user_id == user_id, Note.folder_id == folder.id).all()
+        for note in notes:
+            note.folder_id = None
+            note.updated_at = now
+            notes_moved += 1
+        children = db.query(Folder).filter(Folder.user_id == user_id, Folder.parent_id == folder.id).all()
+        for child in children:
+            child.parent_id = None
+            child.updated_at = now
+        db.delete(folder)
+
+    db.commit()
+    return {"cleaned": len(inbox_folders), "notesUncategorized": notes_moved}

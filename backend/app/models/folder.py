@@ -8,7 +8,7 @@ from app.db.session import Base
 
 
 class Folder(Base):
-    """文件夹表。一层子文件夹（parentId 仅根级）。inbox 为受保护默认文件夹。"""
+    """文件夹表。一层子文件夹（parentId 仅根级）。无默认文件夹；is_inbox 仅用于识别并清理历史 inbox。"""
 
     __tablename__ = "folders"
 

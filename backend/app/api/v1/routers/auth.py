@@ -1,19 +1,13 @@
 """认证路由。"""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.response import success
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import (
-    LoginByCodeRequest,
-    LoginRequest,
-    RegisterRequest,
-    ResetPasswordRequest,
-    SendCodeRequest,
-)
+from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest
 from app.services import auth_service
-from app.core.response import success
 
 router = APIRouter()
 
@@ -32,24 +26,10 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     return success(data)
 
 
-@router.post("/send-code")
-def send_code(payload: SendCodeRequest, db: Session = Depends(get_db)):
-    """发送验证码。本期未启用。"""
-    data = auth_service.send_code(db, payload.account, payload.scene)
-    return success(data)
-
-
-@router.post("/login-by-code")
-def login_by_code(payload: LoginByCodeRequest, db: Session = Depends(get_db)):
-    """验证码登录。本期未启用。"""
-    data = auth_service.login_by_code(db, payload.account, payload.code)
-    return success(data)
-
-
-@router.post("/reset-password")
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """重置密码。本期未启用。"""
-    data = auth_service.reset_password(db, payload.account, payload.code, payload.new_password)
+@router.post("/refresh")
+def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
+    """刷新 access token（并轮换 refresh）。"""
+    data = auth_service.refresh_session(db, payload.refreshToken)
     return success(data)
 
 
@@ -60,6 +40,18 @@ def me(user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-def logout(user: User = Depends(get_current_user)):
-    """退出登录。"""
-    return success({"success": True})
+async def logout(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """退出登录；可选 body: { refreshToken } 精确吊销，否则吊销该用户全部 refresh。"""
+    refresh_token = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            refresh_token = body.get("refreshToken")
+    except Exception:
+        refresh_token = None
+    data = auth_service.logout(db, user, refresh_token)
+    return success(data)

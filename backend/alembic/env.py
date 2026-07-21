@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import get_settings
 from app.db.session import Base
 # 导入所有模型让 Base.metadata 感知
-from app.models import folder, message, note, snapshot, user  # noqa: F401
+from app.models import folder, message, note, refresh_token, snapshot, user  # noqa: F401
 
 config = context.config
 

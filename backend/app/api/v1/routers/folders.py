@@ -28,7 +28,7 @@ def create_folder(
     db: Session = Depends(get_db),
 ):
     """创建。"""
-    data = note_service.create_folder(db, user.id, payload.name, payload.icon, payload.parentId)
+    data = note_service.create_folder(db, user.id, payload.name, payload.icon, payload.parentId, payload.id)
     return success(data)
 
 
@@ -52,6 +52,6 @@ def delete_folders(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """批量删除。"""
+    """批量删除文件夹；夹内笔记改为未分类（不进废纸篓）。"""
     note_service.delete_folders(db, user.id, payload.ids)
     return success({"success": True})

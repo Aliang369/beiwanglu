@@ -7,6 +7,10 @@ import {
 } from '../api/mock/guestMessages'
 import { isApiError } from '../api/types'
 import type { MessageItem, NotificationSettings } from '../types/message'
+import { getLocalBackendKind } from '../data/localBackend'
+import { openSqliteDatabase, schedulePersist } from '../data/sqlite/database'
+import { enqueueSyncChange } from '../sync/syncQueue'
+import { useSyncStore } from './syncStore'
 
 export type MessagesSource = 'guest' | 'api'
 
@@ -34,6 +38,30 @@ function errorMessage(error: unknown, fallback: string): string {
   if (isApiError(error)) return error.message || fallback
   if (error instanceof Error && error.message) return error.message
   return fallback
+}
+
+async function enqueueMessageSync(payload: unknown, entityId: string) {
+  if (getLocalBackendKind() !== 'sqlite') return
+  try {
+    const db = await openSqliteDatabase()
+    await enqueueSyncChange(db, 'message', entityId, 'upsert', payload)
+    schedulePersist(db)
+    useSyncStore.getState().scheduleSync()
+  } catch {
+    // ignore
+  }
+}
+
+async function enqueueSettingsSync(patch: Partial<NotificationSettings>) {
+  if (getLocalBackendKind() !== 'sqlite') return
+  try {
+    const db = await openSqliteDatabase()
+    await enqueueSyncChange(db, 'notification_settings', 'settings', 'upsert', patch)
+    schedulePersist(db)
+    useSyncStore.getState().scheduleSync()
+  } catch {
+    // ignore
+  }
 }
 
 let guestItems = createGuestMessages()
@@ -97,19 +125,19 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   markRead: async (id) => {
     const { source } = get()
-    try {
-      if (source === 'guest') {
-        guestItems = guestItems.map((item) => (item.id === id ? { ...item, unread: false } : item))
-        const updated = guestItems.find((item) => item.id === id)
-        if (!updated) throw new Error('消息不存在')
-        set({
-          items: guestItems.map(cloneMessage),
-          unreadCount: countUnread(guestItems),
-          error: null,
-        })
-        return cloneMessage(updated)
-      }
+    if (source === 'guest') {
+      guestItems = guestItems.map((item) => (item.id === id ? { ...item, unread: false } : item))
+      const updated = guestItems.find((item) => item.id === id)
+      if (!updated) throw new Error('消息不存在')
+      set({
+        items: guestItems.map(cloneMessage),
+        unreadCount: countUnread(guestItems),
+        error: null,
+      })
+      return cloneMessage(updated)
+    }
 
+    try {
       const updated = await messagesApi.markRead(id)
       set((state) => {
         const items = state.items.map((item) => (item.id === id ? updated : item))
@@ -121,6 +149,16 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       })
       return updated
     } catch (error) {
+      const local = get().items.find((item) => item.id === id)
+      if (local) {
+        const updated = { ...local, unread: false }
+        set((state) => {
+          const items = state.items.map((item) => (item.id === id ? updated : item))
+          return { items, unreadCount: countUnread(items), error: null }
+        })
+        await enqueueMessageSync(updated, id)
+        return updated
+      }
       const message = errorMessage(error, '标记已读失败')
       set({ error: message })
       throw error
@@ -129,17 +167,17 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   markAllRead: async () => {
     const { source } = get()
-    try {
-      if (source === 'guest') {
-        guestItems = guestItems.map((item) => ({ ...item, unread: false }))
-        set({
-          items: guestItems.map(cloneMessage),
-          unreadCount: 0,
-          error: null,
-        })
-        return
-      }
+    if (source === 'guest') {
+      guestItems = guestItems.map((item) => ({ ...item, unread: false }))
+      set({
+        items: guestItems.map(cloneMessage),
+        unreadCount: 0,
+        error: null,
+      })
+      return
+    }
 
+    try {
       const result = await messagesApi.markAllRead()
       set((state) => ({
         items: state.items.map((item) => ({ ...item, unread: false })),
@@ -147,28 +185,35 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         error: null,
       }))
     } catch (error) {
-      const message = errorMessage(error, '全部标为已读失败')
-      set({ error: message })
-      throw error
+      set((state) => ({
+        items: state.items.map((item) => ({ ...item, unread: false })),
+        unreadCount: 0,
+        error: null,
+      }))
+      await enqueueMessageSync({ action: 'markAllRead', unread: false }, 'mark-all-read')
+      // 不抛出：离线也可全部已读
+      void error
     }
   },
 
   updateSettings: async (patch) => {
     const { source } = get()
-    try {
-      if (source === 'guest') {
-        guestSettings = { ...guestSettings, ...patch }
-        set({ settings: { ...guestSettings }, error: null })
-        return { ...guestSettings }
-      }
+    if (source === 'guest') {
+      guestSettings = { ...guestSettings, ...patch }
+      set({ settings: { ...guestSettings }, error: null })
+      return { ...guestSettings }
+    }
 
+    try {
       const settings = await messagesApi.updateNotificationSettings(patch)
       set({ settings, error: null })
       return settings
     } catch (error) {
-      const message = errorMessage(error, '通知设置保存失败')
-      set({ error: message })
-      throw error
+      const settings = { ...get().settings, ...patch }
+      set({ settings, error: null })
+      await enqueueSettingsSync(patch)
+      void error
+      return settings
     }
   },
 

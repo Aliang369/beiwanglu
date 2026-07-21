@@ -26,7 +26,6 @@ const settingLabels: Array<{ key: keyof NotificationSettings; label: string; des
   { key: 'systemEnabled', label: '系统通知', description: '产品更新与系统公告' },
   { key: 'securityEnabled', label: '安全通知', description: '登录与账户安全提醒' },
   { key: 'contentEnabled', label: '内容通知', description: '协作与共享相关提醒' },
-  { key: 'emailEnabled', label: '邮件通知', description: '同时发送到注册邮箱' },
 ]
 
 export function MessageCenterView({ onMessageOpen }: MessageCenterViewProps) {

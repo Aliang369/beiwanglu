@@ -1,47 +1,70 @@
 """认证服务。"""
+import hashlib
+import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.response import BizCode, BusinessError
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.folder import Folder
-from app.models.user import User
 from app.models.message import Message, NotificationSettings
+from app.models.refresh_token import RefreshToken
+from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest
 
+settings = get_settings()
 
-def _build_session(user: User) -> dict:
-    """构造 AuthSession 响应。"""
-    token, expires_in = create_access_token(user.id)
+
+def _hash_refresh_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def _issue_refresh_token(db: Session, user_id: str) -> str:
+    """签发 refresh token：原始值返回客户端，哈希入库。"""
+    raw = secrets.token_urlsafe(48)
+    now = datetime.now(timezone.utc)
+    row = RefreshToken(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        token_hash=_hash_refresh_token(raw),
+        expires_at=now + timedelta(seconds=settings.jwt_refresh_expires_seconds),
+        revoked_at=None,
+    )
+    db.add(row)
+    return raw
+
+
+def _build_session(db: Session, user: User) -> dict:
+    """构造 AuthSession：access + refresh。"""
+    access_token, expires_in = create_access_token(user.id)
+    refresh_token = _issue_refresh_token(db, user.id)
+    db.commit()
     return {
-        "accessToken": token,
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
         "tokenType": "Bearer",
         "expiresIn": expires_in,
         "user": user.to_dict(),
     }
 
 
-def _ensure_inbox_and_settings(db: Session, user_id: str) -> None:
-    """为新用户创建 inbox 文件夹 + 通知设置 + 欢迎消息。"""
-    inbox = db.query(Folder).filter(Folder.user_id == user_id, Folder.is_inbox.is_(True)).first()
-    if not inbox:
-        db.add(
-            Folder(
-                id=str(uuid.uuid4()),
-                user_id=user_id,
-                name="inbox",
-                icon="folder",
-                parent_id=None,
-                is_inbox=True,
-            )
-        )
-
-    settings = db.get(NotificationSettings, user_id)
-    if not settings:
+def _ensure_user_bootstrap(db: Session, user_id: str) -> None:
+    """为新用户创建通知设置 + 欢迎消息。"""
+    settings_row = db.get(NotificationSettings, user_id)
+    if not settings_row:
         db.add(NotificationSettings(user_id=user_id))
 
-    # 欢迎消息
+    has_welcome = (
+        db.query(Message)
+        .filter(Message.user_id == user_id, Message.tag == "欢迎")
+        .first()
+    )
+    if has_welcome:
+        return
+
     welcome = Message(
         id=str(uuid.uuid4()),
         user_id=user_id,
@@ -58,59 +81,104 @@ def _ensure_inbox_and_settings(db: Session, user_id: str) -> None:
     db.add(welcome)
 
 
+_ensure_inbox_and_settings = _ensure_user_bootstrap
+
+
+def _find_user_by_login_identity(db: Session, identity: str) -> User | None:
+    """按账号 / 显示名查找用户。"""
+    identity = identity.strip()
+    if not identity:
+        return None
+    return (
+        db.query(User)
+        .filter(
+            or_(
+                User.account == identity,
+                User.name == identity,
+            )
+        )
+        .first()
+    )
+
+
 def register(db: Session, payload: RegisterRequest) -> dict:
-    """注册：不自动登录（按知识库约定）。返回 AuthSession 以便前端决定流程。"""
-    existing = db.query(User).filter(User.account == payload.account).first()
+    """注册：不自动登录；仍返回 session 结构便于契约对齐（前端不写 session）。"""
+    account = payload.account.strip()
+
+    existing = db.query(User).filter(User.account == account).first()
     if existing:
         raise BusinessError(BizCode.BIZ_CONFLICT, "账号已存在")
 
     user = User(
         id=str(uuid.uuid4()),
-        account=payload.account,
+        account=account,
         password_hash=hash_password(payload.password),
-        name=payload.name or payload.account,
-        email="",
+        name=payload.name or account,
         bio="",
         avatar_url=None,
     )
     db.add(user)
     db.flush()
-    _ensure_inbox_and_settings(db, user.id)
+    _ensure_user_bootstrap(db, user.id)
     db.commit()
     db.refresh(user)
-
-    # 知识库约定：注册不自动登录。但契约文档说返回 AuthSession，前端 register 不调 setSession。
-    return _build_session(user)
+    return _build_session(db, user)
 
 
 def login(db: Session, payload: LoginRequest) -> dict:
     """密码登录。"""
-    user = db.query(User).filter(User.account == payload.account).first()
+    user = _find_user_by_login_identity(db, payload.account)
     if not user or not verify_password(payload.password, user.password_hash):
         raise BusinessError(BizCode.ACCOUNT_PASSWORD_WRONG, "账号或密码错误")
-    return _build_session(user)
+
+    from app.services.note_service import cleanup_legacy_inbox
+
+    cleanup_legacy_inbox(db, user.id)
+    return _build_session(db, user)
 
 
-def login_by_code(db: Session, account: str, code: str) -> dict:
-    """验证码登录。本期验证码服务未启用，统一报错。"""
-    raise BusinessError(BizCode.CODE_SERVICE_DISABLED, "验证码服务未启用")
+def refresh_session(db: Session, refresh_token: str) -> dict:
+    """用 refresh token 换发新的 access + refresh（轮换）。"""
+    raw = (refresh_token or "").strip()
+    if not raw:
+        raise BusinessError(BizCode.UNAUTHORIZED, "缺少 refresh token", http_status=401)
+
+    token_hash = _hash_refresh_token(raw)
+    row = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+    now = datetime.now(timezone.utc)
+    if row is None or row.revoked_at is not None:
+        raise BusinessError(BizCode.UNAUTHORIZED, "refresh token 无效", http_status=401)
+
+    expires_at = row.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= now:
+        raise BusinessError(BizCode.UNAUTHORIZED, "refresh token 已过期", http_status=401)
+
+    user = db.get(User, row.user_id)
+    if user is None:
+        raise BusinessError(BizCode.UNAUTHORIZED, "用户不存在", http_status=401)
+
+    # 轮换：吊销旧 refresh
+    row.revoked_at = now
+    db.add(row)
+    return _build_session(db, user)
 
 
-def send_code(db: Session, account: str, scene: str) -> dict:
-    """发送验证码。本期未启用。"""
-    raise BusinessError(BizCode.CODE_SERVICE_DISABLED, "验证码服务未启用")
-
-
-def reset_password(db: Session, account: str, code: str, new_password: str) -> dict:
-    """重置密码。本期未启用。"""
-    raise BusinessError(BizCode.CODE_SERVICE_DISABLED, "验证码服务未启用")
-
-
-def get_me(user: User) -> dict:
-    """获取当前用户。"""
-    return user.to_dict()
-
-
-def logout(user: User) -> dict:
-    """退出登录。本期不做 token 黑名单，前端清会话即可。"""
+def logout(db: Session, user: User, refresh_token: str | None = None) -> dict:
+    """退出：吊销当前 refresh（若提供）或该用户全部 refresh。"""
+    now = datetime.now(timezone.utc)
+    q = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user.id,
+        RefreshToken.revoked_at.is_(None),
+    )
+    if refresh_token:
+        q = q.filter(RefreshToken.token_hash == _hash_refresh_token(refresh_token.strip()))
+    for row in q.all():
+        row.revoked_at = now
+    db.commit()
     return {"success": True}
+
+
+def get_me(db: Session, user: User) -> dict:
+    return user.to_dict()

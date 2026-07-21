@@ -1,6 +1,6 @@
 # 后端对接约定（API Contract）
 
-本文档定义前端与后端的统一接口约定。后端尚未就绪时，前端以 `VITE_API_MODE=mock` 运行本地 Mock；后端就绪后切换 `VITE_API_MODE=real` 并配置 `VITE_API_BASE_URL` 即可对接。
+本文档定义前端与后端的统一接口约定。前端以 `VITE_API_MODE=mock` 运行本地 Mock，或以 `VITE_API_MODE=real` 对接本地/部署中的后端（开发默认 `VITE_API_BASE_URL=http://localhost:3000/api/v1`）。
 
 相关前端实现：
 
@@ -12,7 +12,7 @@ src/shared/types/message.ts
 src/shared/types/userProfile.ts
 ```
 
-> 当前笔记业务数据仍使用 `localStorage`（`webNotesRepository`）。`notesApi` 仅为远程占位，**不会**替换本地仓储。
+> 本地优先：业务读写本机仓储（Web 优先 SQLite/sql.js，失败回退 `webNotesRepository`）。`notesApi` / `apiNotesRepository` 供同步引擎 LWW 推拉云端。未完成项见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。
 
 ---
 
@@ -112,7 +112,6 @@ Authorization: Bearer <accessToken>
 | `40002` | 密码不符合规则 |
 | `40003` | 业务约束冲突（如新旧密码相同） |
 | `40101` | 账号或密码错误 |
-| `40102` | 验证码错误 |
 | `401` | 未授权（也可仅用 HTTP 401） |
 | `40401` | 资源不存在 |
 | `50000` | 服务端未知错误 |
@@ -156,44 +155,6 @@ Mock：任意账号 + 密码 `123456` 成功。
 
 响应 `data`：`AuthSession`
 
-### 2.3 发送验证码
-
-`POST /auth/send-code`（无需 token）
-
-请求：
-
-```json
-{
-  "account": "demo@example.com",
-  "scene": "login"
-}
-```
-
-`scene`：`login` | `register` | `reset_password`
-
-响应 `data`：
-
-```json
-{ "expiresIn": 300 }
-```
-
-Mock：固定验证码 `123456`。
-
-### 2.4 验证码登录
-
-`POST /auth/login-by-code`（无需 token）
-
-请求：
-
-```json
-{
-  "account": "demo@example.com",
-  "code": "123456"
-}
-```
-
-响应 `data`：`AuthSession`
-
 ### 2.5 重置密码
 
 `POST /auth/reset-password`（无需 token）
@@ -225,7 +186,6 @@ interface User {
   id: string
   account: string
   name: string
-  email: string
   bio: string
   avatarUrl: string | null
   createdAt: string
@@ -271,20 +231,7 @@ interface User {
 
 响应 `data`：更新后的 `UserProfile`
 
-### 3.3 安全设置
-
-`GET /user/security`（需要 token）
-
-响应 `data`：
-
-```ts
-interface SecuritySettings {
-  twoFactorEnabled: boolean
-  lastPasswordChangedAt: string | null
-}
-```
-
-### 3.4 修改密码
+### 3.3 修改密码
 
 `POST /user/change-password`（需要 token）
 
@@ -367,7 +314,6 @@ interface NotificationSettings {
   systemEnabled: boolean
   securityEnabled: boolean
   contentEnabled: boolean
-  emailEnabled: boolean
 }
 ```
 
@@ -375,9 +321,9 @@ interface NotificationSettings {
 
 ---
 
-## 5. 笔记与文件夹（远程占位）`/notes` `/folders`
+## 5. 笔记与文件夹 `/notes` `/folders`
 
-> 前端业务仍使用本地仓储。下列接口供后端实现与后续云同步对齐字段模型。
+> 同步引擎经 `notesApi`（或兼容层 `apiNotesRepository`）调用下列接口；业务 UI 读写本机仓储。字段模型需与后端保持一致。创建草稿可带可选客户端 `id` 以保留本地主键。
 
 ### 5.1 笔记
 
@@ -439,14 +385,16 @@ interface NotificationSettings {
 
 字段对齐 [`src/shared/types/folder.ts`](../src/shared/types/folder.ts)。业务规则提示：
 
-- `inbox` 为受保护默认文件夹
+- 无默认文件夹；笔记可 `folderId=null`（未分类）
+- 删除文件夹后，夹内笔记改为未分类（不进废纸篓）
 - 当前产品仅支持一层子文件夹（`parentId` 指向根级）
+- 历史 `is_inbox` 仅用于登录时清理存量 inbox
 
 ---
 
 ## 5.3 快照 `/snapshots`
 
-> 笔记版本历史快照，2026-07-21 新增。前端将抽象 `SnapshotsRepository` 接口（仿 `NotesRepository` 模式），未登录用 `WebSnapshotsRepository`，登录后自动切换到 `ApiSnapshotsRepository`。
+> 笔记版本历史快照。前端 `SnapshotsRepository`：本机 SQLite 或 localStorage 实现；云端经 `snapshotsApi` / `ApiSnapshotsRepository` 由同步引擎推拉。
 
 ### 5.3.1 列表
 
@@ -604,7 +552,7 @@ import { useAuthStore } from '../shared/store/authStore'
 Auth store 能力：
 
 - `hydrate()`：启动时从 localStorage 恢复（`main.tsx` 已调用）
-- `login` / `register` / `loginByCode` / `sendCode` / `resetPassword`
+- `login` / `register` / `refresh` / `me` / `logout`
 - `fetchMe` / `logout` / `setSession` / `clearSession`
 - 状态：`accessToken`, `user`, `isAuthenticated`, `isHydrated`, `isLoading`
 
@@ -625,30 +573,27 @@ Auth store 能力：
 
 ## 8. 本期范围说明
 
-**已完成（前端基建）**
+**已完成（前端基建 + 本地后端联调）**
 
 - 环境配置与 mock/real 切换（`VITE_API_MODE`）
 - HTTP 客户端与统一错误处理（`httpClient.ts` + 统一响应体 `{code,message,data}`）
-- Token 存储与 Auth store（`tokenStorage.ts` + `authStore.ts` 完整能力：hydrate/login/register/loginByCode/sendCode/resetPassword/fetchMe/logout/setSession/clearSession）
-- 4 个模块 API 完整实现：`authApi` / `messagesApi` / `userApi` / `notesApi`
-- `ApiNotesRepository` 完整实现 `NotesRepository` 接口（8 个方法，含 Folder CRUD）
-- 账号 UI（登录/注册/验证码登录/忘记密码/退出）已通过 Mock 接通完整流程
-- 消息中心 UI 已通过 Mock 接通（未登录 guest Mock / 登录后 messagesApi）
-- 设置页资料/改密已通过 userApi Mock 接通
+- Token 存储与 Auth store（`tokenStorage.ts` + `authStore.ts`：hydrate/login/register/fetchMe/logout/setSession/clearSession）
+- 模块 API：`authApi` / `messagesApi` / `userApi` / `notesApi` / 快照与上传等
+- `ApiNotesRepository` 实现 `NotesRepository`；供同步引擎推拉，非登录硬切业务源
+- 账号 / 消息 / 设置 UI 已接通 Mock 与 Real（视环境变量）
+- 本地 FastAPI + MySQL（库名 `beiwanglu`）端到端已跑通
 
 **明确未做**
 
-- **真实后端对接**：当前所有 API 调用走 Mock，未对接真实后端服务
-- **笔记从 localStorage 迁移到远端**：`apiNotesRepository` 已实现但未注入业务流（`notesStore.setRepository()` 当前固定注入 `webNotesRepository`）
+- **笔记从 localStorage 迁移到远端**：仓储可切换，但无一次性迁移与冲突合并
 - Refresh Token / Cookie Session
-- 短信/邮件真实验证码通道（Mock 固定 123456）
-- 多端同步与冲突合并
+- 多端同步稳健性增强（一期 LWW 双路径已通）
 
-> 注：账号/消息/设置 UI 已通过 Mock 完整接通，可正常使用；待真实后端就绪后切换 `VITE_API_MODE=real` 即可对接，无需改 UI 代码。
+> 注：将 `VITE_API_MODE=real` 并启动后端即可联调；默认 Mock 仍可独立开发 UI。完整预留清单见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。
 
 后端接口就绪后，建议接入顺序：
 
 1. 将 `VITE_API_MODE=real`，联调 `/auth/*`，验证账号 UI 真实流程
 2. 接通消息与用户资料真实数据
-3. 设计笔记云同步策略（在 `NotesRepository` 层扩展，通过 `notesStore.setRepository(apiNotesRepository)` 切换，不直接改 UI）
+3. 在本地优先 + 同步引擎一期基础上强化迁移稳健性与冲突策略
 4. 评估离线缓存与冲突解决

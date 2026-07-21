@@ -36,7 +36,7 @@ src-tauri/tauri.conf.json
 | `frontendDist` | `../dist` | Tauri 打包时读取的前端产物目录。 |
 | 窗口尺寸 | `1280 x 800` | 默认窗口大小。 |
 | 最小窗口尺寸 | `1024 x 700` | 最小窗口大小。 |
-| `csp` | `null` | 当前未启用内容安全策略。 |
+| `csp` | 已配置字符串 | 限制脚本/连接源，兼容 API 与字体。 |
 
 ## Rust 入口
 
@@ -52,7 +52,7 @@ src-tauri/src/main.rs
 - 初始化 `tauri-plugin-opener`。
 - 运行应用。
 
-当前没有实现自定义 Tauri command，也没有接入 SQLite、文件系统或系统托盘等原生能力。
+已实现原生 SQLite command（open/exec/query/batch）、读文本文件、系统托盘与应用菜单；设置页支持 MD/JSON 导入与 JSON 备份导出。
 
 ## 开发模式启动
 

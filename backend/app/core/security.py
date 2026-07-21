@@ -36,11 +36,12 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(user_id: str) -> tuple[str, int]:
-    """签发 JWT。返回 (token, expires_in_seconds)。"""
+    """签发 access JWT。返回 (token, expires_in_seconds)。"""
     expires_in = settings.jwt_expires_seconds
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
+        "typ": "access",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=expires_in)).timestamp()),
         "jti": uuid4().hex,
@@ -71,6 +72,9 @@ def get_current_user(
         raise BusinessError(BizCode.UNAUTHORIZED, "未提供认证信息", http_status=401)
 
     payload = decode_token(credentials.credentials)
+    token_typ = payload.get("typ")
+    if token_typ is not None and token_typ != "access":
+        raise BusinessError(BizCode.UNAUTHORIZED, "需要 access token", http_status=401)
     user_id = payload.get("sub")
     if not user_id:
         raise BusinessError(BizCode.UNAUTHORIZED, "token 缺少 sub", http_status=401)

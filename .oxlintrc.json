@@ -1,9 +1,26 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "ignorePatterns": ["dist/**", "dist-ssr/**", "node_modules/**", "src-tauri/target/**"],
+  "plugins": [
+    "react",
+    "typescript",
+    "oxc"
+  ],
+  "ignorePatterns": [
+    "dist/**",
+    "dist-ssr/**",
+    "node_modules/**",
+    "src-tauri/target/**",
+    ".trae/**",
+    "public/sql.js/**",
+    "public/**/*.wasm"
+  ],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ]
   }
 }

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Plus } from 'lucide-react'
 import { AuthModal } from '../auth/AuthModal'
 import type { AuthMode } from '../auth/AuthModal'
+import { importNoteFiles } from '../../shared/desktop/noteImport'
+import { listenDesktopMenu } from '../../shared/desktop/tauriBridge'
 import { EditorView } from './components/EditorView'
 import { FavoritesView } from './components/FavoritesView'
 import { FoldersView } from './components/FoldersView'
@@ -18,9 +20,8 @@ import { TagFilterBar } from './components/TagFilterBar'
 import { Toolbar } from './components/Toolbar'
 import { TrashView } from './components/TrashView'
 import { useNotesStore } from './notesStore'
-import { apiNotesRepository } from '../../shared/data/apiNotesRepository'
-import { webNotesRepository } from '../../shared/data/webNotesRepository'
-import { apiSnapshotsRepository, webSnapshotsRepository } from '../../shared/data/snapshotsRepository'
+import { getActiveNotesRepository, getActiveSnapshotsRepository } from '../../shared/data/localBackend'
+import { useSyncStore } from '../../shared/store/syncStore'
 import { getAllTags, getVisibleNotes } from '../../shared/notes/noteSelectors'
 import { useAuthStore } from '../../shared/store/authStore'
 import { useMessagesStore } from '../../shared/store/messagesStore'
@@ -66,6 +67,9 @@ export function NotesHome() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const logout = useAuthStore((state) => state.logout)
   const loadMessages = useMessagesStore((state) => state.load)
+  const syncEnabled = useSyncStore((state) => state.enabled)
+  const syncNow = useSyncStore((state) => state.syncNow)
+  const hydrateSync = useSyncStore((state) => state.hydrate)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(() => new URL(window.location.href).searchParams.get('note'))
   const [utilityView, setUtilityView] = useState<'settings' | 'help' | 'messages' | null>(null)
   const [authModal, setAuthModal] = useState<AuthMode | null>(null)
@@ -75,16 +79,71 @@ export function NotesHome() {
   const [previewingSnapshotId, setPreviewingSnapshotId] = useState<string | null>(null)
 
   useEffect(() => {
-    void setRepository(isAuthenticated ? apiNotesRepository : webNotesRepository)
-  }, [isAuthenticated, setRepository])
+    // 本地优先：SQLite 可用则用 SQLite，否则 localStorage 回退。
+    void setRepository(getActiveNotesRepository())
+    setSnapshotsRepository(getActiveSnapshotsRepository())
+  }, [setRepository, setSnapshotsRepository])
 
   useEffect(() => {
-    setSnapshotsRepository(isAuthenticated ? apiSnapshotsRepository : webSnapshotsRepository)
-  }, [isAuthenticated, setSnapshotsRepository])
+    hydrateSync()
+  }, [hydrateSync])
+
+  useEffect(() => {
+    const unsubs: Array<() => void> = []
+    void (async () => {
+      unsubs.push(await listenDesktopMenu('menu://new-note', () => {
+        void createNote('')
+      }))
+      unsubs.push(await listenDesktopMenu('menu://settings', () => {
+        setSettingsTab('profile')
+        setUtilityView('settings')
+      }))
+      unsubs.push(await listenDesktopMenu('menu://import', () => {
+        void (async () => {
+          try {
+            const n = await importNoteFiles(getActiveNotesRepository())
+            await loadNotes()
+            if (n > 0) window.alert(`已导入 ${n} 篇笔记`)
+          } catch (error) {
+            window.alert(error instanceof Error ? error.message : '导入失败')
+          }
+        })()
+      }))
+      unsubs.push(await listenDesktopMenu('menu://focus-search', () => {
+        document.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
+      }))
+    })()
+    return () => unsubs.forEach((u) => u())
+  }, [createNote, loadNotes])
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey)) return
+      if (event.key.toLowerCase() === 'n' && !event.shiftKey) {
+        const tag = (event.target as HTMLElement | null)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement)?.isContentEditable) return
+        event.preventDefault()
+        void createNote('')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [createNote])
 
   useEffect(() => {
     void loadMessages(isAuthenticated)
   }, [isAuthenticated, loadMessages])
+
+  useEffect(() => {
+    if (!isAuthenticated || !syncEnabled) {
+      return
+    }
+    void (async () => {
+      await syncNow()
+      await loadNotes()
+      await loadMessages(true)
+    })()
+  }, [isAuthenticated, syncEnabled, syncNow, loadNotes, loadMessages])
 
   useEffect(() => {
     if (!isLoaded || !editingNoteId) {
@@ -221,9 +280,9 @@ export function NotesHome() {
     window.history.replaceState(null, '', '/')
   }
 
-  async function handleCreateNote() {
+  async function handleCreateNote(folderId?: string | null) {
     setUtilityView(null)
-    const note = await createNote()
+    const note = await createNote(folderId)
     setEditingNoteId(note.id)
   }
 
@@ -320,7 +379,7 @@ export function NotesHome() {
               </div>
             ) : (
               <p className="font-label-md text-label-md text-on-surface-variant">
-                {isAuthenticated ? '正在加载云端笔记...' : '正在加载本地笔记...'}
+                {isAuthenticated && syncEnabled ? '正在同步笔记...' : '正在加载本地笔记...'}
               </p>
             )}
           </div>
@@ -375,6 +434,7 @@ export function NotesHome() {
             onRenameFolder={(folderId, name) => renameFolder(folderId, name)}
             onMoveFolders={(folderIds, parentId) => moveFolders(folderIds, parentId)}
             onDeleteFolders={(folderIds) => deleteFolders(folderIds)}
+            onCreateNote={(folderId) => void handleCreateNote(folderId)}
           />
         ) : (
           <main className="relative mx-auto w-full max-w-container-max-width flex-1 overflow-y-auto p-gutter">

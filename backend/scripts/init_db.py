@@ -22,10 +22,8 @@ import pymysql  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
-from app.models.folder import Folder  # noqa: E402
-from app.models.message import Message, NotificationSettings  # noqa: E402
 from app.models.user import User  # noqa: E402
-from app.services.auth_service import _ensure_inbox_and_settings  # noqa: E402
+from app.services.auth_service import _ensure_user_bootstrap  # noqa: E402
 
 
 def create_database_if_not_exists(settings) -> None:
@@ -60,7 +58,7 @@ def run_alembic_upgrade() -> None:
 
 
 def create_initial_account(account: str, password: str) -> None:
-    """创建初始账号 + 默认 inbox 文件夹。"""
+    """创建初始账号 + 通知设置 / 欢迎消息（不再创建 inbox）。"""
     db = SessionLocal()
     try:
         existing = db.query(User).filter(User.account == account).first()
@@ -73,17 +71,15 @@ def create_initial_account(account: str, password: str) -> None:
             account=account,
             password_hash=hash_password(password),
             name=account,
-            email="",
             bio="",
             avatar_url=None,
         )
         db.add(user)
         db.flush()
 
-        # 复用 auth_service 的初始化逻辑：inbox + 通知设置 + 欢迎消息
-        _ensure_inbox_and_settings(db, user.id)
+        _ensure_user_bootstrap(db, user.id)
         db.commit()
-        print(f"[OK] 初始账号 '{account}' 创建成功（已带 inbox/通知设置/欢迎消息）")
+        print(f"[OK] 初始账号 '{account}' 创建成功（通知设置/欢迎消息，无 inbox）")
     finally:
         db.close()
 
@@ -105,11 +101,11 @@ def main():
         create_initial_account(args.account, args.password)
         print()
         print("[完成] 初始化结束。可用以下凭据登录：")
-        print(f"  account: {args.account}")
-        print(f"  password: {args.password}")
-    except Exception as e:
-        print(f"[ERROR] {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"  账号：{args.account}")
+        print(f"  密码：{args.password}")
+    except Exception as exc:
+        print(f"[ERROR] 初始化失败：{exc}")
+        raise
 
 
 if __name__ == "__main__":

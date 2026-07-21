@@ -1,10 +1,8 @@
 import type {
   AuthSession,
-  CodeLoginRequest,
   LoginRequest,
+  RefreshRequest,
   RegisterRequest,
-  ResetPasswordRequest,
-  SendCodeRequest,
   User,
 } from '../../types/auth'
 import { isMockApiMode } from '../config'
@@ -32,33 +30,15 @@ export const authApi = {
     })
   },
 
-  sendCode(payload: SendCodeRequest): Promise<{ expiresIn: number }> {
-    if (isMockApiMode()) return mockAuthApi.sendCode(payload)
-    return request<{ expiresIn: number }>({
-      method: 'POST',
-      path: '/auth/send-code',
-      body: payload,
-      auth: false,
-    })
-  },
-
-  loginByCode(payload: CodeLoginRequest): Promise<AuthSession> {
-    if (isMockApiMode()) return mockAuthApi.loginByCode(payload)
+  refresh(payload: RefreshRequest): Promise<AuthSession> {
+    if (isMockApiMode()) return mockAuthApi.refresh(payload)
     return request<AuthSession>({
       method: 'POST',
-      path: '/auth/login-by-code',
+      path: '/auth/refresh',
       body: payload,
       auth: false,
-    })
-  },
-
-  resetPassword(payload: ResetPasswordRequest): Promise<{ success: true }> {
-    if (isMockApiMode()) return mockAuthApi.resetPassword(payload)
-    return request<{ success: true }>({
-      method: 'POST',
-      path: '/auth/reset-password',
-      body: payload,
-      auth: false,
+      // 避免 refresh 自身触发再 refresh
+      skipAuthRefresh: true,
     })
   },
 
@@ -70,11 +50,13 @@ export const authApi = {
     })
   },
 
-  logout(): Promise<{ success: true }> {
-    if (isMockApiMode()) return mockAuthApi.logout()
+  logout(payload?: RefreshRequest): Promise<{ success: true }> {
+    if (isMockApiMode()) return mockAuthApi.logout(payload)
     return request<{ success: true }>({
       method: 'POST',
       path: '/auth/logout',
+      body: payload,
+      skipAuthRefresh: true,
     })
   },
 }

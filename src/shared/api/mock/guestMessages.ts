@@ -81,8 +81,7 @@ export function createGuestNotificationSettings(): NotificationSettings {
     systemEnabled: true,
     securityEnabled: true,
     contentEnabled: true,
-    emailEnabled: false,
-  }
+    }
 }
 
 export function cloneMessage(item: MessageItem): MessageItem {

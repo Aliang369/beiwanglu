@@ -4,21 +4,21 @@ import {
   clearAuthStorage,
   getAccessToken,
   getCachedUserJson,
+  getRefreshToken,
   setAccessToken,
   setCachedUserJson,
+  setRefreshToken,
 } from '../api/tokenStorage'
 import type {
   AuthSession,
-  CodeLoginRequest,
   LoginRequest,
   RegisterRequest,
-  ResetPasswordRequest,
-  SendCodeRequest,
   User,
 } from '../types/auth'
 
 export interface AuthState {
   accessToken: string | null
+  refreshToken: string | null
   user: User | null
   isAuthenticated: boolean
   isHydrated: boolean
@@ -28,9 +28,6 @@ export interface AuthState {
   clearSession: () => void
   login: (payload: LoginRequest) => Promise<AuthSession>
   register: (payload: RegisterRequest) => Promise<AuthSession>
-  loginByCode: (payload: CodeLoginRequest) => Promise<AuthSession>
-  sendCode: (payload: SendCodeRequest) => Promise<{ expiresIn: number }>
-  resetPassword: (payload: ResetPasswordRequest) => Promise<{ success: true }>
   fetchMe: () => Promise<User>
   setUser: (user: User) => void
   logout: () => Promise<void>
@@ -39,7 +36,10 @@ export interface AuthState {
 function parseCachedUser(json: string | null): User | null {
   if (!json) return null
   try {
-    return JSON.parse(json) as User
+    const raw = JSON.parse(json) as User & { email?: string }
+    const { email: _ignoredEmail, ...user } = raw
+    void _ignoredEmail
+    return user
   } catch {
     return null
   }
@@ -47,11 +47,13 @@ function parseCachedUser(json: string | null): User | null {
 
 function persistSession(session: AuthSession): void {
   setAccessToken(session.accessToken)
+  setRefreshToken(session.refreshToken)
   setCachedUserJson(JSON.stringify(session.user))
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
+  refreshToken: null,
   user: null,
   isAuthenticated: false,
   isHydrated: false,
@@ -59,11 +61,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   hydrate: () => {
     const accessToken = getAccessToken()
+    const refreshToken = getRefreshToken()
     const user = parseCachedUser(getCachedUserJson())
     set({
       accessToken,
+      refreshToken,
       user,
-      isAuthenticated: Boolean(accessToken),
+      isAuthenticated: Boolean(accessToken || refreshToken),
       isHydrated: true,
     })
   },
@@ -72,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     persistSession(session)
     set({
       accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
       user: session.user,
       isAuthenticated: true,
     })
@@ -81,6 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     clearAuthStorage()
     set({
       accessToken: null,
+      refreshToken: null,
       user: null,
       isAuthenticated: false,
     })
@@ -107,30 +113,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  loginByCode: async (payload) => {
-    set({ isLoading: true })
-    try {
-      const session = await authApi.loginByCode(payload)
-      get().setSession(session)
-      return session
-    } finally {
-      set({ isLoading: false })
-    }
-  },
-
-  sendCode: async (payload) => {
-    return authApi.sendCode(payload)
-  },
-
-  resetPassword: async (payload) => {
-    set({ isLoading: true })
-    try {
-      return await authApi.resetPassword(payload)
-    } finally {
-      set({ isLoading: false })
-    }
-  },
-
   fetchMe: async () => {
     const user = await authApi.me()
     setCachedUserJson(JSON.stringify(user))
@@ -146,10 +128,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true })
     try {
+      const refreshToken = get().refreshToken ?? getRefreshToken()
       try {
-        await authApi.logout()
+        await authApi.logout(refreshToken ? { refreshToken } : undefined)
       } catch {
-        // 退出以本地清会话为准，远端失败不阻断
+        // 退出以本地清会话为准
       }
       get().clearSession()
     } finally {

@@ -11,6 +11,8 @@ export interface Folder {
 }
 
 export interface FolderDraft {
+  /** 可选客户端主键；同步上传时保留本地 id。 */
+  id?: string
   name: string
   icon?: FolderIcon
   parentId?: string | null

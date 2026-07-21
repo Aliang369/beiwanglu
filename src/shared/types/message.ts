@@ -21,7 +21,6 @@ export interface NotificationSettings {
   systemEnabled: boolean
   securityEnabled: boolean
   contentEnabled: boolean
-  emailEnabled: boolean
 }
 
 export interface MessageListResult {

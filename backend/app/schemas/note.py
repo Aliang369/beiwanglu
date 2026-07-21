@@ -9,6 +9,7 @@ class NoteTagSchema(BaseModel):
 
 
 class NoteDraftRequest(BaseModel):
+    id: str | None = Field(None, max_length=36, description="可选客户端 ID，用于本地优先同步保留主键")
     title: str = Field("", max_length=500)
     content: str = Field("", description="ProseMirror doc JSON 字符串")
     tags: list[NoteTagSchema] | None = None
@@ -30,6 +31,7 @@ class NoteUpdateRequest(BaseModel):
 
 
 class FolderDraftRequest(BaseModel):
+    id: str | None = Field(None, max_length=36, description="可选客户端 ID，用于本地优先同步保留主键")
     name: str = Field(..., min_length=1, max_length=64)
     icon: str = Field("folder", max_length=32)
     parentId: str | None = None

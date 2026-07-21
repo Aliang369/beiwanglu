@@ -151,6 +151,7 @@ src-tauri/               # Tauri 桌面端
 
 ```bash
 npm run lint
+npm test
 npm run build
 ```
 
@@ -160,7 +161,7 @@ npm run build
 npx oxlint src vite.config.ts tailwind.config.ts postcss.config.js
 ```
 
-当前项目尚未配置测试脚本，测试策略见 [`docs/testing.md`](docs/testing.md)。
+测试策略与已覆盖范围见 [`docs/testing.md`](docs/testing.md)。CI 在 PR 与推送 `main` 时自动跑上述三项。
 
 ## 功能状态变更规则
 

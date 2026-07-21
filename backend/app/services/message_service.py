@@ -79,8 +79,6 @@ def update_notification_settings(
         settings.security_enabled = payload.securityEnabled
     if payload.contentEnabled is not None:
         settings.content_enabled = payload.contentEnabled
-    if payload.emailEnabled is not None:
-        settings.email_enabled = payload.emailEnabled
 
     db.commit()
     db.refresh(settings)

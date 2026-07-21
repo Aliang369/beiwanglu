@@ -9,7 +9,7 @@
  *
  * 保留：
  * - beiwanglu.searchHistory.v1（搜索历史，仍走本地）
- * - beiwanglu.auth.accessToken / beiwanglu.auth.cachedUser（登录态）
+ * - beiwanglu.auth.accessToken / beiwanglu.auth.refreshToken / beiwanglu.auth.user（登录态）
  *
  * 只清一次：用 beiwanglu.legacyCleared.v1 标记，避免重复清理。
  */

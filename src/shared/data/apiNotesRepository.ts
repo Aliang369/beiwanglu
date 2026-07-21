@@ -5,7 +5,7 @@ import type { NotesRepository } from './notesRepository'
 
 /**
  * 基于 notesApi 的远端笔记仓储。
- * 登录后由 notesStore 切换使用；与 localStorage 本地仓储数据隔离。
+ * 同步引擎推拉通道；业务读写本机 SQLite/localStorage 回退。
  */
 export class ApiNotesRepository implements NotesRepository {
   async list(): Promise<Note[]> {

@@ -198,4 +198,4 @@ npm run build
 - 导出：已实现 PNG 长图 / PDF / Word(.docx) 三格式真实文件下载
 - 版本历史：已实现基于快照系统的真实版本管理（20 条 + 7 天 TTL）
 
-待真实后端就绪后，切换 `VITE_API_MODE=real` 即可对接。具体状态见 [`feature-status.md`](feature-status.md)。
+切换 `VITE_API_MODE=real` 并启动本地后端即可联调。状态见 [`feature-status.md`](feature-status.md)；未完成项见 [`未完成与预留功能清单.md`](未完成与预留功能清单.md)。

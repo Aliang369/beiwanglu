@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuthStore } from '../../shared/store/authStore'
@@ -13,7 +13,6 @@ interface RegisterViewProps {
 
 interface RegisterErrors {
   username?: string
-  email?: string
   password?: string
   confirmPassword?: string
   terms?: string
@@ -23,7 +22,6 @@ interface RegisterErrors {
 export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProps) {
   const register = useAuthStore((state) => state.register)
   const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
@@ -40,12 +38,8 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
 
     if (!username.trim()) {
       nextErrors.username = '请输入用户名'
-    }
-
-    if (!email.trim()) {
-      nextErrors.email = '请输入邮箱地址'
-    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-      nextErrors.email = '请输入有效的邮箱地址'
+    } else if (username.trim().length < 3) {
+      nextErrors.username = '用户名至少需要 3 个字符'
     }
 
     if (!password) {
@@ -74,11 +68,11 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
     setIsSubmitting(true)
     try {
       await register({
-        account: email.trim(),
+        account: username.trim(),
         password,
         name: username.trim(),
       })
-      setSuccessMessage('注册成功，请使用账号登录')
+      setSuccessMessage('注册成功，请使用用户名登录')
       window.setTimeout(() => {
         onRegistered()
       }, 900)
@@ -109,20 +103,6 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
           error={errors.username}
           disabled={isSubmitting}
           autoComplete="username"
-        />
-        <AuthInput
-          label="邮箱地址"
-          value={email}
-          onChange={(value) => {
-            setEmail(value)
-            setErrors((current) => ({ ...current, email: undefined, form: undefined }))
-          }}
-          placeholder="邮箱地址"
-          type="email"
-          icon={Mail}
-          error={errors.email}
-          disabled={isSubmitting}
-          autoComplete="email"
         />
         <AuthInput
           label="密码"
@@ -176,9 +156,13 @@ export function RegisterView({ onSwitchToLogin, onRegistered }: RegisterViewProp
           />
           <span className="font-label-md text-label-md text-on-surface-variant">
             我已阅读并同意
-            <button type="button" onClick={() => setAgreementModal('terms')} className="mx-1 text-primary underline-offset-2 hover:underline">服务条款</button>
+            <button type="button" onClick={() => setAgreementModal('terms')} className="mx-1 text-primary underline-offset-2 hover:underline">
+              服务条款
+            </button>
             和
-            <button type="button" onClick={() => setAgreementModal('privacy')} className="mx-1 text-primary underline-offset-2 hover:underline">隐私政策</button>
+            <button type="button" onClick={() => setAgreementModal('privacy')} className="mx-1 text-primary underline-offset-2 hover:underline">
+              隐私政策
+            </button>
           </span>
         </label>
         {errors.terms ? <p className="px-2 font-label-sm text-label-sm text-error">{errors.terms}</p> : null}

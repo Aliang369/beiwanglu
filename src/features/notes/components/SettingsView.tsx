@@ -1,10 +1,8 @@
 import {
   Camera,
-  Laptop,
+  Cloud,
   Lock,
-  Monitor,
   Shield,
-  Smartphone,
   User,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
@@ -13,10 +11,16 @@ import { uploadsApi } from '../../../shared/api/modules/uploadsApi'
 import { isMockApiMode } from '../../../shared/api/config'
 import { isApiError } from '../../../shared/api/types'
 import { useAuthStore } from '../../../shared/store/authStore'
+import { useSyncStore } from '../../../shared/store/syncStore'
+import { getLocalBackendKind } from '../../../shared/data/localBackend'
+import { getActiveNotesRepository } from '../../../shared/data/localBackend'
+import { importNoteFiles } from '../../../shared/desktop/noteImport'
+import { exportActiveNotesJsonBackup } from '../../../shared/desktop/noteExportBackup'
+import { getSqliteBackendKind } from '../../../shared/data/sqlite/database'
+import { isTauriRuntime } from '../../../shared/desktop/tauriBridge'
 import type { User as AuthUser } from '../../../shared/types/auth'
-import type { SecuritySettings as SecuritySettingsData } from '../../../shared/types/userProfile'
 
-export type SettingsTab = 'profile' | 'security'
+export type SettingsTab = 'profile' | 'security' | 'sync'
 
 interface SettingsViewProps {
   initialTab?: SettingsTab
@@ -25,6 +29,7 @@ interface SettingsViewProps {
 const tabs = [
   { id: 'profile', label: '个人资料', icon: User },
   { id: 'security', label: '账户安全', icon: Shield },
+  { id: 'sync', label: '数据同步', icon: Cloud },
 ] satisfies Array<{ id: SettingsTab; label: string; icon: typeof User }>
 
 function SettingsCard({ children, className }: { children: ReactNode; className?: string }) {
@@ -97,6 +102,7 @@ export function SettingsView({ initialTab = 'profile' }: SettingsViewProps) {
         <div className="min-w-0 flex-1 pb-16">
           {activeTab === 'profile' ? <ProfileSettings user={user} /> : null}
           {activeTab === 'security' ? <SecuritySettings /> : null}
+          {activeTab === 'sync' ? <SyncSettings /> : null}
         </div>
       </div>
     </main>
@@ -106,17 +112,15 @@ export function SettingsView({ initialTab = 'profile' }: SettingsViewProps) {
 function ProfileSettings({ user }: { user: AuthUser }) {
   const setUser = useAuthStore((state) => state.setUser)
   const [name, setName] = useState(user.name)
-  const [email, setEmail] = useState(user.email)
   const [bio, setBio] = useState(user.bio)
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl)
-  const [errors, setErrors] = useState<{ name?: string; email?: string; avatar?: string; save?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string; avatar?: string; save?: string }>({})
   const [status, setStatus] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setName(user.name)
-    setEmail(user.email)
     setBio(user.bio)
     setAvatarUrl(user.avatarUrl)
   }, [user])
@@ -162,21 +166,14 @@ function ProfileSettings({ user }: { user: AuthUser }) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const nextErrors: { name?: string; email?: string } = {}
+    const nextErrors: { name?: string } = {}
     const nextName = name.trim()
-    const nextEmail = email.trim()
     const nextBio = bio.trim()
 
     if (!nextName) {
       nextErrors.name = '请输入昵称'
     } else if (nextName.length > 32) {
       nextErrors.name = '昵称不能超过 32 个字符'
-    }
-
-    if (!nextEmail) {
-      nextErrors.email = '请输入邮箱地址'
-    } else if (!/^\S+@\S+\.\S+$/.test(nextEmail)) {
-      nextErrors.email = '请输入有效的邮箱地址'
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -197,13 +194,11 @@ function ProfileSettings({ user }: { user: AuthUser }) {
       setUser({
         ...user,
         name: profile.name,
-        email: nextEmail,
         bio: profile.bio,
         avatarUrl: profile.avatarUrl,
         updatedAt: profile.updatedAt,
       })
       setName(profile.name)
-      setEmail(nextEmail)
       setBio(profile.bio)
       setAvatarUrl(profile.avatarUrl)
       setErrors({})
@@ -268,21 +263,6 @@ function ProfileSettings({ user }: { user: AuthUser }) {
                 />
                 {errors.name ? <span className="font-label-sm text-label-sm text-error">{errors.name}</span> : null}
               </label>
-              <label className="flex flex-col gap-2">
-                <span className="font-label-md text-label-md text-on-surface">邮箱</span>
-                <input
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value)
-                    setErrors((current) => ({ ...current, email: undefined }))
-                    setStatus(null)
-                  }}
-                  className={`border-0 border-b bg-transparent px-0 py-2 font-body-md text-body-md transition-colors focus:outline-none ${errors.email ? 'border-error focus:border-error' : 'border-outline-variant focus:border-primary'}`}
-                  type="email"
-                  autoComplete="email"
-                />
-                {errors.email ? <span className="font-label-sm text-label-sm text-error">{errors.email}</span> : null}
-              </label>
               <label className="flex flex-col gap-2 md:col-span-2">
                 <span className="font-label-md text-label-md text-on-surface">个人简介</span>
                 <textarea
@@ -345,9 +325,6 @@ function SecuritySettings() {
   const [errors, setErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string; form?: string }>({})
   const [status, setStatus] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [security, setSecurity] = useState<SecuritySettingsData | null>(null)
-  const [securityLoading, setSecurityLoading] = useState(true)
-  const [securityError, setSecurityError] = useState<string | null>(null)
   const passwordStrength = getPasswordStrength(newPassword)
   const canSubmitPassword =
     Boolean(currentPassword) &&
@@ -355,29 +332,6 @@ function SecuritySettings() {
     newPassword !== currentPassword &&
     confirmPassword === newPassword &&
     !isSubmitting
-
-  useEffect(() => {
-    let cancelled = false
-    setSecurityLoading(true)
-    setSecurityError(null)
-    void userApi
-      .getSecuritySettings()
-      .then((data) => {
-        if (!cancelled) {
-          setSecurity(data)
-          setSecurityLoading(false)
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setSecurityError(isApiError(error) ? error.message : '安全设置加载失败')
-          setSecurityLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -419,8 +373,6 @@ function SecuritySettings() {
       setNewPassword('')
       setConfirmPassword('')
       setStatus('密码已更新')
-      const nextSecurity = await userApi.getSecuritySettings()
-      setSecurity(nextSecurity)
     } catch (error) {
       setErrors({
         form: isApiError(error) ? error.message : '修改密码失败，请稍后重试',
@@ -441,34 +393,6 @@ function SecuritySettings() {
   return (
     <div>
       <div className="space-y-6">
-        <SettingsCard>
-          <SectionTitle icon={Shield}>安全概览</SectionTitle>
-          {securityLoading ? (
-            <p className="font-body-md text-body-md text-on-surface-variant">正在加载安全设置...</p>
-          ) : securityError ? (
-            <p className="font-body-md text-body-md text-error" role="alert">
-              {securityError}
-            </p>
-          ) : security ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-3">
-                <p className="font-label-sm text-label-sm text-on-surface-variant">二次验证</p>
-                <p className="mt-1 font-label-md text-label-md text-on-surface">
-                  {security.twoFactorEnabled ? '已开启' : '未开启'}
-                </p>
-              </div>
-              <div className="rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-3">
-                <p className="font-label-sm text-label-sm text-on-surface-variant">上次修改密码</p>
-                <p className="mt-1 font-label-md text-label-md text-on-surface">
-                  {security.lastPasswordChangedAt
-                    ? new Date(security.lastPasswordChangedAt).toLocaleString('zh-CN')
-                    : '暂无记录'}
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </SettingsCard>
-
         <SettingsCard>
           <SectionTitle icon={Lock}>修改密码</SectionTitle>
           <form onSubmit={(event) => void handlePasswordSubmit(event)} noValidate>
@@ -531,71 +455,191 @@ function SecuritySettings() {
           </form>
         </SettingsCard>
 
-        <SettingsCard>
-          <SectionTitle icon={Monitor} tone="tertiary">登录活动</SectionTitle>
-          <p className="mb-4 rounded-xl bg-surface-container-low px-4 py-3 font-label-md text-label-md text-on-surface-variant">
-            当前为演示数据，真实设备与会话记录需要接入账号后端后才会显示。
-          </p>
-          <div className="space-y-4">
-            {[
-              { icon: Laptop, title: 'MacBook Pro · 上海, 中国', description: 'Chrome 浏览器 · 正在活跃', current: true },
-              { icon: Smartphone, title: 'iPhone 15 Pro · 杭州, 中国', description: 'iOS App · 2小时前', current: false },
-              { icon: Monitor, title: 'Windows Desktop · 北京, 中国', description: 'Edge 浏览器 · 2023年10月24日', current: false },
-            ].map((device) => {
-              const Icon = device.icon
+      </div>
+    </div>
+  )
+}
 
-              return (
-                <div key={device.title} className="group flex items-center justify-between rounded-xl p-4 transition-colors hover:bg-surface-container-low">
-                  <div className="flex items-center gap-4">
-                    <Icon className="size-10 rounded-full bg-surface-container-high p-2 text-on-surface-variant" />
-                    <div>
-                      <p className="font-label-md text-label-md font-bold text-on-surface">{device.title}</p>
-                      <p className="font-label-sm text-label-sm text-on-surface-variant">{device.description}</p>
-                    </div>
-                  </div>
-                  {device.current ? (
-                    <span className="rounded-full bg-primary-fixed px-3 py-1 font-label-sm text-label-sm font-bold text-primary">当前设备</span>
-                  ) : (
-                    <button type="button" disabled title="需要接入会话服务" className="cursor-not-allowed font-label-sm text-label-sm text-error/50">
-                      注销
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+function SyncSettings() {
+  const enabled = useSyncStore((state) => state.enabled)
+  const status = useSyncStore((state) => state.status)
+  const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt)
+  const lastError = useSyncStore((state) => state.lastError)
+  const setEnabled = useSyncStore((state) => state.setEnabled)
+  const syncNow = useSyncStore((state) => state.syncNow)
+  const queue = useSyncStore((state) => state.queue)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const [confirmDisable, setConfirmDisable] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function handleEnable() {
+    setEnabled(true)
+    if (!isAuthenticated) return
+    setBusy(true)
+    try {
+      await syncNow({ force: true, forceRetryFailed: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function handleDisableRequest() {
+    setConfirmDisable(true)
+  }
+
+  function confirmDisableSync() {
+    setEnabled(false)
+    setConfirmDisable(false)
+  }
+
+  return (
+    <div className="space-y-6">
+      <SettingsCard>
+        <SectionTitle icon={Cloud}>云端同步</SectionTitle>
+        <p className="mb-4 font-body-md text-body-md text-on-surface-variant">
+          本地优先：笔记优先保存在本机 SQLite；若 SQLite 不可用会自动回退 localStorage。登录后默认同步到云端；关闭后仅使用本机数据。
+        </p>
+        {getLocalBackendKind() !== 'sqlite' ? (
+          <p className="mb-4 rounded-xl bg-tertiary-fixed/40 px-4 py-3 font-label-md text-label-md text-on-surface">
+            当前为 localStorage 回退模式：本机数据在浏览器本地，云端同步仍可用（LWW 合并）。
+          </p>
+        ) : (
+          <p className="mb-4 rounded-xl bg-primary-container/20 px-4 py-3 font-label-md text-label-md text-on-surface">
+            {`当前本机后端：SQLite（${getSqliteBackendKind() === 'native' ? '桌面原生' : 'sql.js'}）`}
+          </p>
+        )}
+        <div className="flex flex-col gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-label-md text-label-md font-medium text-on-surface">
+              {enabled ? '同步已开启' : '同步已关闭'}
+            </p>
+            <p className="mt-1 font-label-sm text-label-sm text-on-surface-variant">
+              {!isAuthenticated
+                ? '登录后才会与云端交换数据'
+                : status === 'syncing'
+                  ? '正在与云端同步…'
+                  : lastSyncedAt
+                    ? `最近同步：${new Date(lastSyncedAt).toLocaleString('zh-CN')}`
+                    : '尚未完成同步'}
+            </p>
+            {queue && queue.total > 0 ? (
+              <p className="mt-1 font-label-sm text-label-sm text-on-surface-variant">
+                待同步 {queue.pending} 条
+                {queue.failed > 0 ? `，失败 ${queue.failed} 条` : ''}
+              </p>
+            ) : null}
+            {lastError ? (
+              <p className="mt-1 font-label-sm text-label-sm text-error" role="alert">
+                {lastError}
+              </p>
+            ) : null}
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {enabled ? (
+              <>
+                <button
+                  type="button"
+                  disabled={!isAuthenticated || busy || status === 'syncing'}
+                  onClick={() => void syncNow({ force: true, forceRetryFailed: true })}
+                  className="rounded-full border border-outline-variant/40 px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {status === 'syncing' || busy ? '同步中...' : '立即同步'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisableRequest}
+                  className="rounded-full bg-surface-container px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-high"
+                >
+                  关闭同步
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleEnable()}
+                disabled={busy}
+                className="rounded-full bg-primary px-4 py-2 font-label-md text-label-md font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {busy ? '开启并合并中...' : '开启同步'}
+              </button>
+            )}
+          </div>
+        </div>
+      </SettingsCard>
+
+      
+      <SettingsCard>
+        <SectionTitle icon={Cloud}>数据导入 / 导出</SectionTitle>
+        <p className="mb-4 font-body-md text-body-md text-on-surface-variant">
+          导入支持 Markdown（.md）或 JSON 备份；导出为全部未删除笔记的 JSON 备份（不含回收站），可再导入恢复。
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled
-            title="需要接入会话服务"
-            className="mt-6 w-full cursor-not-allowed rounded-lg py-2 font-label-md text-label-md font-medium text-primary/50"
+            className="rounded-full bg-primary px-4 py-2 font-label-md text-label-md font-medium text-on-primary"
+            onClick={() => {
+              void (async () => {
+                try {
+                  const n = await importNoteFiles(getActiveNotesRepository())
+                  window.alert(n > 0 ? `已导入 ${n} 篇笔记` : '未选择文件')
+                } catch (error) {
+                  window.alert(error instanceof Error ? error.message : '导入失败')
+                }
+              })()
+            }}
           >
-            退出所有其他会话（待接入）
+            选择文件导入
           </button>
-        </SettingsCard>
+          <button
+            type="button"
+            className="rounded-full border border-outline-variant/40 px-4 py-2 font-label-md text-label-md text-on-surface transition-colors hover:bg-surface-container-high"
+            onClick={() => {
+              void (async () => {
+                try {
+                  const n = await exportActiveNotesJsonBackup(getActiveNotesRepository())
+                  window.alert(n > 0 ? `已导出 ${n} 篇笔记备份` : '没有可导出的笔记')
+                } catch (error) {
+                  window.alert(error instanceof Error ? error.message : '导出失败')
+                }
+              })()
+            }}
+          >
+            导出 JSON 备份
+          </button>
+        </div>
+        {isTauriRuntime() ? (
+          <p className="mt-3 font-label-sm text-label-sm text-on-surface-variant">当前运行于桌面壳，也可使用菜单「文件 → 导入笔记…」。</p>
+        ) : null}
+      </SettingsCard>
 
-        <SettingsCard className="border-error/20 bg-error-container/20">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-error-container text-error">
-                <Shield className="size-5" />
-              </div>
-              <div>
-                <h3 className="font-headline-sm text-headline-sm text-error">注销账户</h3>
-                <p className="mt-1 max-w-md font-body-md text-body-md text-on-surface-variant">永久删除账户需要身份复核和后端数据清理，当前仅保留入口。</p>
-              </div>
+      {confirmDisable ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="disable-sync-title">
+          <div className="w-full max-w-md rounded-2xl border border-outline-variant/40 bg-surface-bright p-6 shadow-lg">
+            <h3 id="disable-sync-title" className="font-headline-sm text-headline-sm text-on-surface">
+              关闭同步？
+            </h3>
+            <p className="mt-3 font-body-md text-body-md text-on-surface-variant">
+              关闭后不会再与云端同步。本机数据仍可继续编辑，再次开启时将自动合并云端与本地（冲突后写覆盖）。
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDisable(false)}
+                className="rounded-full px-4 py-2 font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={confirmDisableSync}
+                className="rounded-full bg-error px-4 py-2 font-label-md text-label-md font-medium text-on-error"
+              >
+                确认关闭
+              </button>
             </div>
-            <button
-              type="button"
-              disabled
-              title="需要接入账号服务"
-              className="shrink-0 cursor-not-allowed rounded-full border border-error/40 px-6 py-2.5 font-label-md text-label-md text-error/50"
-            >
-              删除账户（待接入）
-            </button>
           </div>
-        </SettingsCard>
-      </div>
+        </div>
+      ) : null}
     </div>
   )
 }

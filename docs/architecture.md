@@ -51,7 +51,7 @@ index.html
 
 `NotesHome` 中有两个关键副作用：
 
-- 登录态变化时调用 `setRepository(isAuthenticated ? apiNotesRepository : webNotesRepository)` 切换数据源并重新加载笔记。
+- 启动 `initLocalBackend` 后注入本机仓储（SQLite 或 localStorage 回退）；登录且同步开启时跑同步引擎再 `loadNotes`。
 - 登录态变化时调用 `loadMessages(isAuthenticated)` 切换 guest Mock / 远端 messagesApi。
 
 ## 状态流
@@ -74,8 +74,8 @@ localStorage: beiwanglu.notes.v4（兼容 v1/v2/v3 迁移链）
 - `src/features/notes/notesStore.ts`：把 `webNotesRepository` 注入 Zustand store 工厂（作为初始仓储）。
 - `src/shared/store/notesStore.ts`：定义 `NotesState`、各 action 和 `setRepository` 仓储切换方法。
 - `src/shared/data/notesRepository.ts`：定义数据仓储接口（8 个方法）。
-- `src/shared/data/webNotesRepository.ts`：未登录使用的 `localStorage` 实现。
-- `src/shared/data/apiNotesRepository.ts`：登录后使用的远端实现（已实现未注入业务流，由 `NotesHome` 在登录时切换启用）。
+- `src/shared/data/webNotesRepository.ts`：localStorage 实现（回退/兼容）。
+- `src/shared/data/apiNotesRepository.ts`：远端实现（同步推拉通道）。
 
 ## 数据仓储边界
 
@@ -89,26 +89,26 @@ localStorage: beiwanglu.notes.v4（兼容 v1/v2/v3 迁移链）
 
 - SQLite：`src/shared/data/sqliteNotesRepository.ts`（类型别名占位）
 - 移动端本地存储：`src/shared/data/mobileNotesRepository.ts`（类型别名占位）
-- 远程 API：`src/shared/data/apiNotesRepository.ts`（**已实现未接入**，登录态自动启用）
+- 远程 API：`src/shared/data/apiNotesRepository.ts`（同步引擎推拉）
 
 ## 双仓储切换说明
 
-笔记数据流采用"未登录本地 + 登录后远端"的双仓储模式：
+笔记数据流采用"本机优先（SQLite / localStorage 回退）+ 登录可选云同步"模式：
 
-- 未登录：`WebNotesRepository` 读写 `localStorage: beiwanglu.notes.v4`。
+- 本机优先：`SqliteNotesRepository`（Web sql.js）；失败回退 `WebNotesRepository`（`beiwanglu.notes.v4`）。
 - 登录后：`ApiNotesRepository` 调用 `notesApi`，由 `httpClient` 走真实 HTTP 或 Mock（取决于 `VITE_API_MODE`）。
 
 切换由 `NotesHome` 中的副作用驱动：
 
 ```ts
 useEffect(() => {
-  void setRepository(isAuthenticated ? apiNotesRepository : webNotesRepository)
+  // 本地优先：initLocalBackend 后注入 sqlite 或 web；登录同步走 sync 引擎
 }, [isAuthenticated, setRepository])
 ```
 
-`notesStore.setRepository()` 会重置 `notes / folders / selectedNoteId / snapshots` 等本地状态，然后立即调用 `loadNotes()` 重新拉取。两套仓储数据互相隔离，未做迁移，未做同步。
+`notesStore.setRepository()` 会重置 `notes / folders / selectedNoteId / snapshots` 等本地状态，然后立即调用 `loadNotes()` 重新拉取。本地优先：本机 SQLite（失败回退 localStorage）；登录且同步开启时 LWW 与云端合并。
 
-注意：`apiNotesRepository` 当前仅在登录态下被激活，应用整体仍处于"Mock 接通"阶段，并未对接真实后端服务（见 `docs/feature-status.md`）。
+注意：业务读写本机仓储；`apiNotesRepository` 供同步。本地 FastAPI 可与 `VITE_API_MODE=real` 联调。未完成/预留见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。
 
 ## 领域逻辑边界
 
@@ -167,7 +167,7 @@ useEffect(() => {
 ## 功能模块边界
 
 ```text
-src/features/auth/      # 账号相关 UI（登录/注册/验证码/忘记密码/协议/输入框）
+src/features/auth/      # 账号相关 UI（登录/注册/协议/输入框）
 src/features/notes/     # 笔记主功能、页面编排、编辑器与全部组件
 src/shared/api/         # 远程 API 客户端、Mock、token/user 存储（见 docs/api-contract.md）
 src/shared/data/        # 本地数据接口和实现（笔记仓储 + 快照仓储）
@@ -180,8 +180,8 @@ src/styles/             # 全局样式
 
 远程 API 与本地仓储边界：
 
-- 未登录笔记：`NotesRepository` → `webNotesRepository` → `localStorage: beiwanglu.notes.v4`
-- 登录后笔记：`NotesRepository` → `apiNotesRepository` → `notesApi`（Mock/Real）
+- 本机笔记：`NotesRepository` → `sqliteNotesRepository` 或 `webNotesRepository`
+- 云端同步：`notesApi` / `apiNotesRepository`（Mock/Real）经同步引擎 LWW
 - 消息：`useMessagesStore`（guest Mock / 登录后 `messagesApi`）
 - 鉴权：`useAuthStore` + `authApi`（Mock/Real）+ `tokenStorage`
 - 后端对接基建：`src/shared/api/*` + `useAuthStore`（默认 Mock，可切 real）
@@ -288,8 +288,8 @@ src/styles/             # 全局样式
 
 **账号（`src/features/auth/`）**
 
-- `AuthModal.tsx`：账号弹窗外壳，切换登录/注册/验证码/忘记密码。
-- `LoginView.tsx`、`RegisterView.tsx`、`CodeLoginView.tsx`、`ForgotPasswordView.tsx`：四种账号表单。
+- `AuthModal.tsx`：账号弹窗外壳，切换登录/注册。
+- `LoginView.tsx`、`RegisterView.tsx`：登录/注册表单。
 - `AgreementModal.tsx`：协议弹窗。
 - `AuthInput.tsx`：账号输入框。
 - `authFormUtils.ts`：账号表单工具函数。
@@ -301,7 +301,7 @@ Tauri 目前主要提供桌面壳能力：
 - `src-tauri/tauri.conf.json`：窗口（1280×800，最小 1024×700）、开发地址 `http://localhost:5173`、构建命令、产物目录等配置。
 - `src-tauri/src/main.rs`：Rust 入口，初始化 Tauri builder 和 `tauri_plugin_opener`。
 
-当前业务数据仍由 Web 前端的 `localStorage` 管理，没有接入 Tauri command、SQLite 或文件系统 API。
+Web 业务数据优先 sql.js SQLite，失败回退 localStorage；桌面原生 SQLite / Tauri command 尚未接入。
 
 如果后续要实现桌面原生存储，建议路径是：
 

@@ -2,7 +2,6 @@ export interface User {
   id: string
   account: string
   name: string
-  email: string
   bio: string
   avatarUrl: string | null
   createdAt: string
@@ -20,26 +19,18 @@ export interface RegisterRequest {
   name?: string
 }
 
-export interface CodeLoginRequest {
-  account: string
-  code: string
+export interface RefreshRequest {
+  refreshToken: string
 }
 
-export type SendCodeScene = 'login' | 'register' | 'reset_password'
-
-export interface SendCodeRequest {
-  account: string
-  scene: SendCodeScene
-}
-
-export interface ResetPasswordRequest {
-  account: string
-  code: string
-  newPassword: string
-}
-
+/**
+ * 双 Token 会话。
+ * access / refresh 当前存 localStorage（与既有架构一致）；
+ * XSS 风险高于 HttpOnly Cookie，后续可升级。
+ */
 export interface AuthSession {
   accessToken: string
+  refreshToken: string
   tokenType: 'Bearer'
   expiresIn: number
   user: User

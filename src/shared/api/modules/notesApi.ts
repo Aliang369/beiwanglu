@@ -21,9 +21,8 @@ export type NoteUpdatePatch = Partial<
 >
 
 /**
- * 远程笔记/文件夹 API 占位。
- * 注意：当前应用数据流仍使用 localStorage 的 webNotesRepository，
- * 本模块仅供后续云同步接入，切勿在 UI 中直接替换本地仓储。
+ * 远程笔记/文件夹 API。
+ * 本地优先架构下：业务读写走 SQLite；本模块供同步引擎推拉云端使用。
  */
 export const notesApi = {
   listNotes(): Promise<Note[]> {

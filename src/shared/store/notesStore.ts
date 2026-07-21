@@ -1,5 +1,5 @@
 // 改动：updateSelectedNote / updateNote 支持 cover；duplicateNote 复制 cover；新增版本快照能力
-// 改动：快照仓储抽象，登录态切换本地/云端，与 NotesRepository 模式一致
+// 改动：快照仓储抽象；本机优先仓储 + 同步引擎（非登录硬切云端）
 import { create } from 'zustand'
 import type { NotesRepository } from '../data/notesRepository'
 import type { SnapshotsRepository } from '../data/snapshotsRepository'
@@ -28,7 +28,7 @@ export interface NotesState {
   /** 笔记版本快照：noteId → 快照列表（按 createdAt 倒序）。 */
   snapshots: Record<string, Snapshot[]>
   loadNotes: () => Promise<void>
-  createNote: () => Promise<Note>
+  createNote: (folderId?: string | null) => Promise<Note>
   duplicateNote: (noteId: string) => Promise<void>
   selectNote: (noteId: string) => void
   updateNote: (noteId: string, patch: NoteEditablePatch) => Promise<void>
@@ -54,9 +54,9 @@ export interface NotesState {
   createSnapshot: (noteId: string, content: string, noteTitle: string, title?: string) => Promise<Snapshot[]>
   /** 恢复到指定快照：先把当前内容存为"恢复前自动保存"快照，再覆盖笔记内容。 */
   restoreSnapshot: (noteId: string, snapshotId: string) => Promise<void>
-  /** 切换笔记底层仓储（登录态切换本地/云端时使用），并立即重新加载。 */
+  /** 切换笔记底层仓储（本机 SQLite/回退等），并立即重新加载。 */
   setRepository: (repository: NotesRepository) => Promise<void>
-  /** 切换快照底层仓储（登录态切换本地/云端时使用）。 */
+  /** 切换快照底层仓储（本机 SQLite/回退等）。 */
   setSnapshotsRepository: (repository: SnapshotsRepository) => void
   isLoading: boolean
   loadError: string | null
@@ -132,12 +132,23 @@ export function createNotesStore(initialRepository: NotesRepository) {
       }
     },
 
-    async createNote() {
-      const note = await repository.create({ title: '', content: '', tags: [], folderId: null })
+    async createNote(folderId) {
+      const resolvedFolderId =
+        folderId && get().folders.some((folder) => folder.id === folderId) ? folderId : null
+      const note = await repository.create({
+        title: '',
+        content: '',
+        tags: [],
+        folderId: resolvedFolderId,
+      })
       set((state) => ({
         notes: [note, ...state.notes],
         selectedNoteId: note.id,
-        filter: { ...state.filter, view: 'all', tagId: null },
+        filter: {
+          ...state.filter,
+          view: resolvedFolderId ? state.filter.view : 'all',
+          tagId: null,
+        },
       }))
       return note
     },
@@ -347,30 +358,24 @@ export function createNotesStore(initialRepository: NotesRepository) {
         return
       }
 
-      const now = new Date().toISOString()
-      const notesToTrash = notes.filter((note) => note.folderId && subtreeIds.has(note.folderId))
+      // 删除文件夹后：夹内笔记改为未分类，不进废纸篓（与后端一致）
+      const notesToUncategorize = notes.filter(
+        (note) => note.folderId && subtreeIds.has(note.folderId) && !note.isDeleted,
+      )
 
-      const trashedNotes = await Promise.all(
-        notesToTrash.map((note) => repository.update(note.id, {
-          isDeleted: true,
-          deletedAt: note.isDeleted ? note.deletedAt : now,
-          folderId: null,
-        })),
+      const uncategorizedNotes = await Promise.all(
+        notesToUncategorize.map((note) => repository.update(note.id, { folderId: null })),
       )
       await repository.deleteFolders(Array.from(subtreeIds))
 
       set((state) => {
-        const trashedById = new Map(trashedNotes.map((note) => [note.id, note]))
-        const nextNotes = state.notes.map((note) => trashedById.get(note.id) ?? note)
+        const uncategorizedById = new Map(uncategorizedNotes.map((note) => [note.id, note]))
+        const nextNotes = state.notes.map((note) => uncategorizedById.get(note.id) ?? note)
         const nextFolders = state.folders.filter((folder) => !subtreeIds.has(folder.id))
-        const selectedNoteId = state.selectedNoteId && trashedById.has(state.selectedNoteId)
-          ? firstVisibleNoteId(nextNotes, state.filter.view)
-          : state.selectedNoteId
 
         return {
           notes: nextNotes,
           folders: nextFolders,
-          selectedNoteId,
         }
       })
     },

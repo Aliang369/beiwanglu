@@ -2,7 +2,7 @@
  * 笔记版本快照数据模型。
  * - 每次编辑保存自动生成一条快照，存储当时的内容 JSON 与标题。
  * - 双重保留策略：最近 MAX_SNAPSHOTS_PER_NOTE 条 且 在 SNAPSHOT_TTL_MS 时间内的快照。
- * - TODO: 后续迁移到 IndexedDB 或后端存储，目前先跑通流程使用 localStorage。
+ * - 本机：SQLite 或 localStorage；云端：同步引擎经 api/snapshots 推拉。
  */
 export interface Snapshot {
   id: string

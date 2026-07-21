@@ -2,7 +2,6 @@ export interface UserProfile {
   id: string
   account: string
   name: string
-  email: string
   bio: string
   avatarUrl: string | null
   createdAt: string
@@ -18,9 +17,4 @@ export interface UpdateProfileRequest {
 export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
-}
-
-export interface SecuritySettings {
-  twoFactorEnabled: boolean
-  lastPasswordChangedAt: string | null
 }

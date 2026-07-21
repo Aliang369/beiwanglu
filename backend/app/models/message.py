@@ -70,8 +70,6 @@ class NotificationSettings(Base):
     system_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     security_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     content_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    email_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -84,5 +82,4 @@ class NotificationSettings(Base):
             "systemEnabled": self.system_enabled,
             "securityEnabled": self.security_enabled,
             "contentEnabled": self.content_enabled,
-            "emailEnabled": self.email_enabled,
         }

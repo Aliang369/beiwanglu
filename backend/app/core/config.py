@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str = "change-me-to-a-strong-random-string-at-least-32-chars"
     jwt_algorithm: str = "HS256"
-    jwt_expires_seconds: int = 604800  # 7 天
+    jwt_expires_seconds: int = 900  # access: 15 分钟
+    jwt_refresh_expires_seconds: int = 2592000  # refresh: 30 天
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

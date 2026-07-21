@@ -28,12 +28,6 @@ def update_profile(
     return success(data)
 
 
-@router.get("/security")
-def get_security(user: User = Depends(get_current_user)):
-    """安全设置。"""
-    return success(user_service.get_security(user))
-
-
 @router.post("/change-password")
 def change_password(
     payload: ChangePasswordRequest,

@@ -63,7 +63,6 @@ let notificationSettings: NotificationSettings = {
   systemEnabled: true,
   securityEnabled: true,
   contentEnabled: true,
-  emailEnabled: false,
 }
 
 function unreadCount(): number {

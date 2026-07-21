@@ -1,6 +1,5 @@
 import type {
   ChangePasswordRequest,
-  SecuritySettings,
   UpdateProfileRequest,
   UserProfile,
 } from '../../types/userProfile'
@@ -23,14 +22,6 @@ export const userApi = {
       method: 'PATCH',
       path: '/user/profile',
       body: payload,
-    })
-  },
-
-  getSecuritySettings(): Promise<SecuritySettings> {
-    if (isMockApiMode()) return mockUserApi.getSecuritySettings()
-    return request<SecuritySettings>({
-      method: 'GET',
-      path: '/user/security',
     })
   },
 

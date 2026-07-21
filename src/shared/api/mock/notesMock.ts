@@ -19,7 +19,7 @@ let notes: Note[] = [
     content: '这是 apiNotes 的 Mock 数据，不会替换本地 localStorage 仓储。',
     excerpt: '这是 apiNotes 的 Mock 数据，不会替换本地 localStorage 仓储。',
     tags: [{ id: 'tag_remote', name: '远程占位' }],
-    folderId: 'inbox',
+    folderId: null,
     isFavorite: false,
     isDeleted: false,
     deletedAt: null,
@@ -31,16 +31,7 @@ let notes: Note[] = [
   },
 ]
 
-let folders: Folder[] = [
-  {
-    id: 'inbox',
-    name: '收件箱',
-    icon: 'folder',
-    parentId: null,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-  },
-]
+let folders: Folder[] = []
 
 export const mockNotesApi = {
   async listNotes(): Promise<Note[]> {
@@ -66,7 +57,7 @@ export const mockNotesApi = {
       content: draft.content,
       excerpt: createExcerpt(draft.content),
       tags: draft.tags ? draft.tags.map((tag) => ({ ...tag })) : [],
-      folderId: draft.folderId ?? 'inbox',
+      folderId: draft.folderId ?? null,
       isFavorite: false,
       isDeleted: false,
       deletedAt: null,

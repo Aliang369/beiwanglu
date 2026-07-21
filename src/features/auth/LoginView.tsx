@@ -1,14 +1,12 @@
-import { ArrowRight, Code2, Eye, EyeOff, Lock, Mail, MessageCircle } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuthStore } from '../../shared/store/authStore'
 import { AuthInput } from './AuthInput'
 import { getAuthErrorMessage } from './authFormUtils'
-import { CodeLoginView } from './CodeLoginView'
 
 interface LoginViewProps {
   onSwitchToRegister: () => void
-  onForgotPassword: () => void
   onAuthenticated: () => void
 }
 
@@ -18,9 +16,8 @@ interface LoginErrors {
   form?: string
 }
 
-export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticated }: LoginViewProps) {
+export function LoginView({ onSwitchToRegister, onAuthenticated }: LoginViewProps) {
   const login = useAuthStore((state) => state.login)
-  const [loginMethod, setLoginMethod] = useState<'password' | 'code'>('password')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -33,7 +30,7 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
     const nextErrors: LoginErrors = {}
 
     if (!account.trim()) {
-      nextErrors.account = '请输入邮箱或用户名'
+      nextErrors.account = '请输入用户名'
     }
 
     if (!password) {
@@ -59,16 +56,6 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
     }
   }
 
-  if (loginMethod === 'code') {
-    return (
-      <CodeLoginView
-        onBackToPasswordLogin={() => setLoginMethod('password')}
-        onSwitchToRegister={onSwitchToRegister}
-        onAuthenticated={onAuthenticated}
-      />
-    )
-  }
-
   return (
     <>
       <div className="text-center">
@@ -78,14 +65,14 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
 
       <form className="flex w-full flex-col gap-stack-md" onSubmit={(event) => void handleSubmit(event)}>
         <AuthInput
-          label="邮箱或用户名"
+          label="用户名"
           value={account}
           onChange={(value) => {
             setAccount(value)
             setErrors((current) => ({ ...current, account: undefined, form: undefined }))
           }}
-          placeholder="邮箱或用户名"
-          icon={Mail}
+          placeholder="用户名"
+          icon={User}
           error={errors.account}
           disabled={isSubmitting}
           autoComplete="username"
@@ -121,15 +108,6 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
           </p>
         ) : null}
 
-        <div className="mt-2 flex items-center justify-between px-2">
-          <button type="button" onClick={() => setLoginMethod('code')} className="font-label-md text-label-md text-primary transition-colors hover:text-primary-container">
-            验证码登录
-          </button>
-          <button type="button" onClick={onForgotPassword} className="font-label-md text-label-md text-on-surface-variant transition-colors hover:text-on-surface">
-            忘记密码？
-          </button>
-        </div>
-
         <button
           type="submit"
           disabled={isSubmitting}
@@ -139,22 +117,6 @@ export function LoginView({ onSwitchToRegister, onForgotPassword, onAuthenticate
           <ArrowRight className="size-4" />
         </button>
       </form>
-
-      <div className="mt-4 flex flex-col gap-stack-md">
-        <div className="relative flex items-center py-2">
-          <div className="flex-grow border-t border-outline-variant/50" />
-          <span className="mx-4 shrink-0 font-label-sm text-label-sm text-on-surface-variant">其他登录方式</span>
-          <div className="flex-grow border-t border-outline-variant/50" />
-        </div>
-        <div className="flex justify-center gap-stack-md">
-          <button type="button" className="flex size-12 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-low text-on-surface transition-colors hover:bg-surface-variant" disabled title="暂未接入">
-            <MessageCircle className="size-5" />
-          </button>
-          <button type="button" className="flex size-12 items-center justify-center rounded-full border border-outline-variant/20 bg-surface-container-low text-on-surface transition-colors hover:bg-surface-variant" disabled title="暂未接入">
-            <Code2 className="size-5" />
-          </button>
-        </div>
-      </div>
 
       <div className="mt-2 text-center">
         <p className="font-label-md text-label-md text-on-surface-variant">

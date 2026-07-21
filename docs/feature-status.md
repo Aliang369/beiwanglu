@@ -9,12 +9,14 @@
 - 原型：主要是 UI 和流程演示，尚未接入真实数据或业务逻辑。
 - 占位：为后续扩展预留，目前没有实际功能。
 
+未完成与预留项的功能级盘点见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。
+
 ## 功能状态表
 
 | 功能 | 状态 | 说明 | 主要文件 |
 | --- | --- | --- | --- |
 | 全部笔记 | 可用 | 展示未删除笔记，置顶优先，按更新时间排序。 | `NotesHome.tsx`, `NoteList.tsx`, `noteSelectors.ts` |
-| 创建笔记 | 可用 | 新建标题为"未命名笔记"的草稿，默认 `folderId` 为 `inbox`。 | `notesStore.ts`, `webNotesRepository.ts` |
+| 创建笔记 | 可用 | 新建草稿；在文件夹上下文内归属该文件夹，否则 `folderId=null`（未分类）。 | `notesStore.ts`, `webNotesRepository.ts`, `FoldersView.tsx` |
 | 编辑笔记 | 可用 | TipTap 富文本编辑，自动更新摘要和更新时间。 | `EditorView.tsx`, `EditorPanel.tsx`, `RichEditor.tsx`, `noteDomain.ts` |
 | 富文本编辑 | 可用 | TipTap 13 扩展（代码块/表格/任务列表/数学公式/图片/YouTube 等）。 | `RichEditor.tsx`, `useNotesEditor.ts` |
 | 搜索 | 可用 | 标题/正文/摘要/标签匹配，`Cmd/Ctrl+K` 聚焦。 | `NoteSearchInput.tsx`, `noteSelectors.ts` |
@@ -25,29 +27,30 @@
 | 只读模式 | 可用 | `toggleReadOnly`，锁定内容防止意外修改。 | `notesStore.ts`, `EditorInfoPanel.tsx` |
 | 笔记封面 | 可用 | `cover` 字段，`CoverDialog` 选择封面。 | `CoverDialog.tsx`, `notesStore.ts` |
 | 回收站 | 可用 | 移入/恢复/永久删除/清空，30 天保留 + 自动清理，剩余天数动态展示，最后 3 天高亮。 | `TrashView.tsx`, `TrashNoteCard.tsx`, `notesStore.ts`, `noteDomain.ts` |
-| 文件夹浏览 | 可用 | 一层子文件夹混合展示。 | `FoldersView.tsx`, `notesStore.ts` |
-| 自定义文件夹 | 可用 | 创建/重命名/移动/删除持久化到 localStorage v4。 | `CreateFolderDialog.tsx`, `RenameFolderDialog.tsx`, `webNotesRepository.ts` |
+| 文件夹浏览 | 可用 | 一层子文件夹混合展示；无默认 inbox。 | `FoldersView.tsx`, `notesStore.ts` |
+| 自定义文件夹 | 可用 | 创建/重命名/移动/删除持久化；删除后笔记未分类。 | `CreateFolderDialog.tsx`, `RenameFolderDialog.tsx`, `webNotesRepository.ts` |
 | 文件夹多选 | 可用 | 全选/移动/删除批量操作。 | `FoldersSelectionBar.tsx`, `useIdSelection.ts` |
-| 版本历史 | 可用 | 基于快照系统，每笔记最多 20 条 + 7 天 TTL，预览/恢复。 | `EditorHistoryPanel.tsx`, `snapshotsRepository.ts`, `useNotesEditor.ts` |
+| 版本历史 | 可用 | 基于快照系统，每笔记最多 20 条 + 7 天 TTL，预览/恢复；登录后可走远端。 | `EditorHistoryPanel.tsx`, `snapshotsRepository.ts`, `useNotesEditor.ts` |
 | 导出 | 可用 | PNG 长图 / PDF / Word(.docx) 三格式。 | `EditorExportOverlay.tsx`, `noteExport.ts` |
+| JSON 备份导出 | 可用 | 设置页导出全部未删除笔记为 JSON（与导入兼容，不含回收站）。 | `noteExportBackup.ts`, `SettingsView.tsx` |
 | 消息中心 | 可用 | 未登录本地 Mock，登录后 `messagesApi`；下拉与中心共用 store。 | `messagesStore.ts`, `MessageCenterView.tsx` |
 | 通知下拉 | 可用 | 与消息中心共用 `messagesStore`。 | `NotificationDropdown.tsx`, `Toolbar.tsx` |
 | 消息详情 | 可用 | 打开自动标已读。 | `MessageDetailModal.tsx` |
 | 登录 | 可用 | 密码登录走 Auth store + Mock/Real API。 | `LoginView.tsx`, `authStore.ts` |
 | 注册 | 可用 | 注册后回登录页，不自动登录。 | `RegisterView.tsx`, `authApi.ts` |
-| 验证码登录 | 可用 | 发码/登录接 API；Mock 验证码 `123456`。 | `CodeLoginView.tsx` |
-| 忘记密码 | 可用 | 验证码重置密码流程。 | `ForgotPasswordView.tsx` |
 | 退出登录 | 可用 | `logout` 清 token/user。 | `NotesHome.tsx`, `authStore.ts` |
-| 设置页 | 部分可用 | 资料/改密接 `userApi`；登录活动等仍演示。 | `SettingsView.tsx` |
+| 云端同步 | 部分可用 | 登录默认同步 + LWW；SQLite 或 localStorage 回退均可。 | `src/shared/sync/` |
+| 设置页 | 部分可用 | 资料/改密/同步开关已接（含回退后端提示）。 | `SettingsView.tsx` |
 | 帮助页 | 原型 | 静态帮助内容。 | `HelpView.tsx` |
 | 编辑器信息面板 | 部分可用 | 展示笔记信息 + 置顶/只读开关。 | `EditorInfoPanel.tsx` |
 | Web 开发服务 | 可用 | Vite 固定端口 5173。 | `vite.config.ts` |
 | Tauri 桌面壳 | 基础可用 | 桌面开发和打包基础壳。 | `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs` |
-| SQLite 数据源 | 占位 | 类型别名。 | `sqliteNotesRepository.ts` |
-| 移动端数据源 | 占位 | 类型别名。 | `mobileNotesRepository.ts` |
-| API 基建层 | 可用 | HTTP 客户端、统一响应、Mock/Real 切换、4 个模块 API 完整实现。 | `src/shared/api/*`, `docs/api-contract.md` |
-| Auth store | 可用 | token/user 恢复；登录/注册/验证码/重置/退出已接通 UI。 | `authStore.ts`, `authApi.ts`, `features/auth/*` |
-| 远程笔记 API | **已实现未接入** | `notesApi` + `apiNotesRepository` 完整实现，未注入业务流。 | `notesApi.ts`, `apiNotesRepository.ts` |
+| SQLite 数据源 | 部分可用 | Web sql.js + localStorage 回退；桌面原生适配未完成。 | `src/shared/data/sqlite/`、`localBackend.ts` |
+| 移动端数据源 | 部分可用 | 统一 SQLite 入口；原生驱动未接。 | `mobileNotesRepository.ts` |
+| API 基建层 | 可用 | HTTP 客户端、统一响应、Mock/Real 切换、模块 API。 | `src/shared/api/*`, `docs/api-contract.md` |
+| Auth store | 可用 | token/user 恢复；登录/注册/退出已接通 UI；设置页改密。 | `authStore.ts`, `authApi.ts`, `features/auth/*` |
+| 远程笔记 API | 可用 | `notesApi` + `apiNotesRepository` 作同步推拉；业务读写本机 SQLite/localStorage 回退。 | `notesApi.ts`, `apiNotesRepository.ts`, `src/shared/sync/` |
+| 后端服务 | 可用 | FastAPI + MySQL `beiwanglu`，本地端到端；前端 `VITE_API_MODE=real` 可联调。 | `backend/` |
 
 ## 接入真实能力前的检查项
 
@@ -55,7 +58,7 @@
 
 全部已完成：
 
-- 密码登录 / 注册 / 验证码登录 / 忘记密码 UI 流程。
+- 用户名密码登录 / 注册 UI 流程；设置页改密。
 - `authApi` 完整实现 Mock 与 Real 双模式。
 - `useAuthStore` 持久化 `accessToken` / `user` 到 `localStorage`。
 - 退出登录会清会话并关闭依赖登录的视图。
@@ -64,7 +67,6 @@
 可选后续：
 
 - Refresh Token 自动续期。
-- 短信/邮件真实验证码（当前 Mock 固定 `123456`）。
 - 隐私协议和服务条款实际内容。
 
 ### 消息系统
@@ -87,14 +89,13 @@
 
 - 独立 `Folder` 模型 + `localStorage` v4 持久化。
 - 创建 / 重命名 / 移动 / 删除完整持久化。
-- 删除时子文件夹一并删除，笔记移入废纸篓。
+- 删除时子文件夹一并删除，夹内笔记改为未分类（`folderId=null`），不进废纸篓。
 - 仅支持一层子文件夹（`assertValidParentId` 等校验在 `folderDomain.ts`）。
 - 多选批量移动/删除（`FoldersSelectionBar` + `useIdSelection`）。
 
 可选后续：
 
 - 任意深度嵌套。
-- 拖拽排序。
 
 ### 回收站
 
@@ -120,15 +121,15 @@
 
 ## 明确未做
 
-以下能力当前没有实现，对应文件仅占位或仅 Mock：
+以下能力当前没有实现或仅部分完成（完整盘点见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)）：
 
-- **真实后端对接**：账号、消息、笔记三套 API 都通过 `VITE_API_MODE=mock` 跑 Mock，未对接真实后端服务。
-- **笔记从 localStorage 迁移到远端**：`apiNotesRepository` 已实现 8 个方法，登录后会被 `NotesHome` 自动启用，但本地→云端的数据迁移和同步未做，两套仓储数据隔离。
+- **本地优先同步**：业务读写本机（SQLite 优先，失败回退 localStorage）；登录默认同步 LWW；稳健性（重试/字段级冲突）仍待增强。
 - **Refresh Token**：当前只保存 `accessToken`，过期后需要重新登录。
-- **短信/邮件真实验证码**：Mock 模式固定返回 `123456`。
-- **多端同步**：未做云端同步、冲突解决和离线缓存。
+- **多端同步增强**：一期 LWW 已通（SQLite/回退双路径）；缺更强离线队列与字段级冲突。
 - **任意深度文件夹嵌套**：`folderDomain.ts` 强制一层子文件夹。
 - **自动化测试**：仓库未引入测试框架，`shared/notes/` 纯逻辑和 repository 暂无单测覆盖。
+
+说明：本地 FastAPI 后端与 `VITE_API_MODE=real` 联调已可用；默认仍可走 Mock。
 
 ## 文档维护规则
 
@@ -136,5 +137,6 @@
 
 - `README.md` 的功能状态表。
 - 本文档的状态表。
+- [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)（若未完成项增减）。
 - 如涉及数据结构，更新 `docs/data-model.md`。
 - 如涉及桌面端能力，更新 `docs/tauri.md`。

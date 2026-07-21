@@ -36,8 +36,6 @@ class BizCode:
     PASSWORD_RULE = 40002        # 密码不符合规则
     BIZ_CONFLICT = 40003         # 业务约束冲突（如新旧密码相同）
     ACCOUNT_PASSWORD_WRONG = 40101  # 账号或密码错误
-    CODE_WRONG = 40102           # 验证码错误
-    CODE_SERVICE_DISABLED = 40103  # 验证码服务未启用
     UNAUTHORIZED = 401           # 未授权
     FORBIDDEN = 403              # 无权限
     NOT_FOUND = 40401            # 资源不存在

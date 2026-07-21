@@ -1,29 +1,56 @@
 # 测试策略
 
-当前项目尚未配置单元测试、组件测试或端到端测试脚本。本文档记录推荐的测试分层和后续接入顺序。
+本文档记录当前已落地的质量检查，以及后续测试分层与接入顺序。
 
 ## 当前可用检查
 
-目前 `package.json` 中可用于质量检查的命令：
+`package.json` 中可用于质量检查的命令：
 
 ```bash
 npm run lint
+npm test
+npm run test:watch
 npm run build
 ```
 
 含义：
 
-- `npm run lint`：使用 Oxlint 检查代码。
+- `npm run lint`：使用 Oxlint 检查代码（已忽略 `dist/**`、`src-tauri/target/**`、`.trae/**`、`public/sql.js/**`）。
+- `npm test`：Vitest 单次跑完（`vitest run`），覆盖 `src/shared/notes` 纯逻辑。
+- `npm run test:watch`：Vitest 监听模式，本地开发时用。
 - `npm run build`：执行 TypeScript build 和 Vite production build。
+
+## 已落地的单元测试
+
+工具：Vitest 4（与 Vite 8 对齐，配置在 `vite.config.ts` 的 `test` 字段）。
+
+当前覆盖：
+
+```text
+src/shared/notes/noteDomain.test.ts
+src/shared/notes/noteSelectors.test.ts
+src/shared/notes/folderDomain.test.ts
+```
+
+测试重点（已实现）：
+
+- `createExcerpt` / `buildNewNote` / `applyNotePatch` / 废纸篓天数与到期清理
+- `parseSearchTerms` / `scoreNoteMatch` / `getVisibleNotes` / 标签聚合
+- `assertValidParentId` / `canMoveFolder` / 同级重名 / 一层嵌套 normalize
+
+## CI
+
+GitHub Actions：`.github/workflows/ci.yml`
+
+- 触发：`pull_request`，以及推送到 `main`
+- 步骤：`npm ci` → `npm run lint` → `npm test` → `npm run build`
 
 ## 当前限制
 
-- 没有 `npm test`。
-- 没有 Vitest / Jest。
-- 没有 React Testing Library。
-- 没有 Playwright / Cypress。
-- 没有覆盖率统计。
-- 没有 CI 配置。
+- 没有 React Testing Library / 组件测试。
+- 没有 Playwright / Cypress / E2E。
+- 没有覆盖率统计脚本。
+- Repository / Store 层单测尚未接入。
 
 ## 推荐测试分层
 
@@ -83,7 +110,7 @@ Repository 测试需要 mock `localStorage` 和 `crypto.randomUUID()`。
   - `add()` 自动 trim。
   - `deleteByNote()` 级联清理。
   - localStorage key `beiwanglu.snapshots.v1`。
-- `src/shared/data/apiNotesRepository.ts` 测试重点（已实现未接入）：
+- `src/shared/data/apiNotesRepository.ts` 测试重点（同步推拉通道，非登录硬切业务源）：
   - 8 方法（list / listFolders / create / createFolder / update / updateFolder / delete / deleteFolders）。
   - mock fetch 验证请求路径和 body。
 
@@ -125,7 +152,7 @@ Store 测试可以通过注入 fake repository 完成。
 
 - `src/shared/store/authStore.ts` 测试重点：
   - `hydrate()` 从 localStorage 恢复 token/user。
-  - `login()` / `register()` / `loginByCode()` / `resetPassword()` 流程。
+  - `login()` / `register()` 流程；refresh 自动续期（httpClient）。
   - `logout()` 清理 token/user。
   - `setSession()` / `clearSession()` 状态切换。
 - `src/shared/store/messagesStore.ts` 测试重点：
@@ -186,11 +213,12 @@ Playwright
 
 ## 建议接入顺序
 
-### 第一阶段
+### 第一阶段（已完成）
 
 - 安装 Vitest。
-- 新增 `npm test`。
+- 新增 `npm test` / `test:watch`。
 - 覆盖 `noteDomain.ts`、`noteSelectors.ts`、`folderDomain.ts`。
+- 接入 GitHub Actions（lint + test + build）。
 
 ### 第二阶段
 
@@ -206,24 +234,31 @@ Playwright
 
 - 引入 Playwright。
 - 覆盖核心用户路径。
-- 视情况接入 CI。
+- CI 已具备前端质量门禁，可再挂 E2E job。
 
-## 建议脚本
+## 脚本现状
 
-后续可考虑在 `package.json` 中增加：
+已添加：
 
 ```json
 {
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest",
+    "test:watch": "vitest"
+  }
+}
+```
+
+后续可再考虑：
+
+```json
+{
+  "scripts": {
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test"
   }
 }
 ```
-
-实际添加前需要安装对应依赖，并更新 README 与本文档。
 
 ## 测试数据建议
 

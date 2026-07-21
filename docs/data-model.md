@@ -22,7 +22,7 @@ beiwanglu.notes.v4（兼容迁移旧 key v1/v2/v3）
 src/shared/data/mockNotes.ts
 ```
 
-中的示例笔记。登录后由 `NotesHome` 调用 `notesStore.setRepository(apiNotesRepository)` 切换到远端仓储，与本地数据隔离。
+中的示例笔记。现行本地优先：本机 SQLite（失败回退 localStorage）；登录且同步开启时 LWW 与云端合并，不再登录硬切纯远端仓储。
 
 ## 本地存储 key 索引
 
@@ -30,12 +30,18 @@ src/shared/data/mockNotes.ts
 
 | Key | 用途 | 写入方 | 数据形态 |
 | --- | --- | --- | --- |
-| `beiwanglu.notes.v4` | 笔记 + 文件夹主存储 | `webNotesRepository` | `{ version: 4, notes: Note[], folders: Folder[], updatedAt: string }` |
+| `beiwanglu.notes.v4` | 笔记 + 文件夹（localStorage 回退主存储） | `webNotesRepository` | `{ version: 4, notes: Note[], folders: Folder[], updatedAt: string }` |
 | `beiwanglu.notes.v1` | 兼容旧读取方的笔记数组镜像 | `webNotesRepository.write()` | `Note[]`（仅 notes 数组） |
 | `beiwanglu.snapshots.v1` | 笔记版本快照 | `webSnapshotsRepository` | `{ version: 1, snapshots: Record<noteId, Snapshot[]> }` |
 | `beiwanglu.searchHistory.v1` | 搜索关键词历史 | `searchHistory.ts` | `string[]`（最多 8 条） |
 | `beiwanglu.auth.accessToken` | 登录态访问令牌 | `tokenStorage.ts` | `string` |
 | `beiwanglu.auth.user` | 登录用户信息缓存 | `tokenStorage.ts` | `User` JSON 字符串 |
+| `beiwanglu.sqlite.v1` | Web sql.js 库持久化 | `sqlite/database.ts` | base64 数据库 |
+| `beiwanglu.sqlite.migrated.v1` | 导入 SQLite 标记 | `migrateLegacyToSqlite.ts` | `"1"` |
+| `beiwanglu.sync.prefs.v1` | 同步偏好 | `syncPreferences.ts` | `{ enabled, lastSyncedAt }` |
+| `beiwanglu.messages.cache.v1` | 回退模式消息缓存 | `localStorageSyncEngine.ts` | 消息列表缓存 |
+| `beiwanglu.notificationSettings.cache.v1` | 回退模式通知设置 | `localStorageSyncEngine.ts` | 通知设置缓存 |
+| `beiwanglu.legacyCleared.v1` | 历史清理标记 | `clearLegacyStorage.ts` | `"1"` |
 
 旧 key `beiwanglu.notes.v2` / `beiwanglu.notes.v3` 仅在 `migrateToV4()` 迁移时读取，不再写入。
 
@@ -108,7 +114,7 @@ interface Folder {
 规则：
 
 - `parentId === null` 表示根级文件夹；非空时父级必须存在且其 `parentId` 为 `null`（仅允许一层子文件夹）。
-- 删除文件夹会一并删除其直接子文件夹，并将其中笔记移入废纸篓（`folderId` 置 `null`）。
+- 删除文件夹会一并删除其直接子文件夹，并将其中笔记改为未分类（`folderId` 置 `null`），不进废纸篓。
 - 同级不允许同名文件夹（`hasFolderNameConflict`）。
 
 ## FolderDraft
@@ -236,7 +242,7 @@ src/shared/data/webNotesRepository.ts
 5. `update()`：根据 id 找到笔记，调用 `applyNotePatch` 重新生成摘要与更新时间，写回。
 6. `updateFolder()`：校验移动合法性与同名冲突，调用 `applyFolderPatch` 写回。
 7. `delete()`：从 notes 中过滤掉目标 id 并写回。
-8. `deleteFolders()`：批量删除文件夹；调用方（`notesStore`）负责把相关笔记移入废纸篓。
+8. `deleteFolders()`：批量删除文件夹；调用方（`notesStore`）负责把相关笔记改为未分类。
 
 内部读取流程 `read()`：
 
@@ -408,11 +414,11 @@ beiwanglu.auth.user         // User 对象 JSON 缓存
 - 没有数据版本号字段（存储结构有 `version: 4`，但单条 Note/Folder 没有 schema 版本）。
 - 没有 schema migration 框架（迁移逻辑写在 `WebNotesRepository` 内）。
 - Folder 模型已落地，但仅支持一层子文件夹。
-- 没有用户维度（本地数据无 user id 关联；登录后切换到 `apiNotesRepository`，两套数据隔离）。
+- 本机库无 user 维度分表（单端本机一份）；登录后云端按 user 隔离，经同步引擎对齐。
 - 没有同步或冲突解决。
 - 没有加密存储。
 - SQLite 和移动端 repository 只是类型别名占位。
-- 快照存储使用 `localStorage`，未迁移到 IndexedDB 或后端。
+- 快照：本机 SQLite 或 localStorage；云端经同步引擎/`snapshotsApi` 推拉。
 
 ## 后续扩展建议
 
@@ -447,10 +453,12 @@ src/shared/data/sqliteNotesRepository.ts
 
 ### 接入远程 API
 
-`apiNotesRepository.ts` **已实现未接入**业务流：登录态下会被 `NotesHome` 自动启用，但本地→云端的数据迁移和同步未做。需要额外处理：
+`apiNotesRepository.ts` 作为同步推拉通道；本地→云端 LWW 一期已通（SQLite 队列 / localStorage 回退直连）。后续需增强：
 
 - 认证状态过期与刷新（Refresh Token）。
 - 网络错误与重试。
 - 乐观更新与回滚。
 - 离线缓存与冲突解决。
 - 本地到云端的一次性数据迁移。
+
+未完成项总表见 [`docs/未完成与预留功能清单.md`](./未完成与预留功能清单.md)。

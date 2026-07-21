@@ -1,18 +1,26 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './app/App'
-import { clearLegacyStorage } from './shared/data/clearLegacyStorage'
+import { initLocalBackend } from './shared/data/localBackend'
 import { useAuthStore } from './shared/store/authStore'
+import { useSyncStore } from './shared/store/syncStore'
 import './styles/global.css'
 
-// 上线前清理旧的 localStorage 数据（notes/snapshots 已迁到后端）
-// 只清一次，保留 searchHistory 和 auth token
-clearLegacyStorage()
+async function bootstrap() {
+  useAuthStore.getState().hydrate()
+  useSyncStore.getState().hydrate()
 
-useAuthStore.getState().hydrate()
+  try {
+    await initLocalBackend()
+  } catch (error) {
+    console.error('[bootstrap] local backend init failed', error)
+  }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}
+
+void bootstrap()

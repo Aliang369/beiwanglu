@@ -1,10 +1,9 @@
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
-import { ForgotPasswordView } from './ForgotPasswordView'
 import { LoginView } from './LoginView'
 import { RegisterView } from './RegisterView'
 
-export type AuthMode = 'login' | 'register' | 'forgot-password'
+export type AuthMode = 'login' | 'register'
 
 interface AuthModalProps {
   mode: AuthMode
@@ -21,7 +20,12 @@ export function AuthModal({ mode, onModeChange, onAuthenticated, onClose }: Auth
   useEffect(() => {
     const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const content = contentRef.current
-    const getFocusableElements = () => Array.from(content?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])') ?? [])
+    const getFocusableElements = () =>
+      Array.from(
+        content?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      )
 
     getFocusableElements()[0]?.focus()
 
@@ -61,7 +65,7 @@ export function AuthModal({ mode, onModeChange, onAuthenticated, onClose }: Auth
     }
   }, [])
 
-  const modalLabel = mode === 'login' ? '登录' : mode === 'register' ? '注册' : '找回密码'
+  const modalLabel = mode === 'login' ? '登录' : '注册'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={modalLabel}>
@@ -78,11 +82,9 @@ export function AuthModal({ mode, onModeChange, onAuthenticated, onClose }: Auth
         </button>
         <div className="flex flex-col gap-stack-lg">
           {mode === 'login' ? (
-            <LoginView onSwitchToRegister={() => onModeChange('register')} onForgotPassword={() => onModeChange('forgot-password')} onAuthenticated={onAuthenticated} />
-          ) : mode === 'register' ? (
-            <RegisterView onSwitchToLogin={() => onModeChange('login')} onRegistered={() => onModeChange('login')} />
+            <LoginView onSwitchToRegister={() => onModeChange('register')} onAuthenticated={onAuthenticated} />
           ) : (
-            <ForgotPasswordView onBackToLogin={() => onModeChange('login')} />
+            <RegisterView onSwitchToLogin={() => onModeChange('login')} onRegistered={() => onModeChange('login')} />
           )}
         </div>
       </div>

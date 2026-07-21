@@ -2,8 +2,8 @@
  * 笔记快照仓储抽象。
  *
  * 与 NotesRepository 模式一致：
- * - 未登录用 WebSnapshotsRepository（localStorage）
- * - 登录后由 notesStore 切换到 ApiSnapshotsRepository（远端）
+ * - 本机：WebSnapshotsRepository（localStorage 回退）或 SqliteSnapshotsRepository
+ * - 云端：ApiSnapshotsRepository / snapshotsApi 由同步引擎推拉
  *
  * localStorage key: beiwanglu.snapshots.v1
  * 结构：{ version, snapshots: Record<noteId, Snapshot[]> }
@@ -60,6 +60,21 @@ export class WebSnapshotsRepository implements SnapshotsRepository {
   async deleteByNote(noteId: string): Promise<void> {
     const data = this.read()
     delete data.snapshots[noteId]
+    this.write(data)
+  }
+
+  /** 同步引擎：覆盖写入单条快照（不入队远端）。 */
+  async upsertFromRemote(snapshot: Snapshot): Promise<void> {
+    const data = this.read()
+    const list = (data.snapshots[snapshot.noteId] ?? []).slice().filter((item) => item.id !== snapshot.id)
+    list.push(snapshot)
+    data.snapshots[snapshot.noteId] = this.trim(list)
+    this.write(data)
+  }
+
+  async replaceNoteSnapshots(noteId: string, snapshots: Snapshot[]): Promise<void> {
+    const data = this.read()
+    data.snapshots[noteId] = this.trim(snapshots)
     this.write(data)
   }
 

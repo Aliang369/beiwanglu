@@ -42,6 +42,8 @@ export interface Note {
 }
 
 export interface NoteDraft {
+  /** 可选客户端主键；同步上传时保留本地 id。 */
+  id?: string
   title: string
   content: string
   tags?: NoteTag[]

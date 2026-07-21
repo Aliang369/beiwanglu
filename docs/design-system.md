@@ -259,8 +259,7 @@ md:ml-sidebar-width
 
 ## 后续改进建议
 
-- 把核心设计 token 同步为 CSS variables，便于主题切换。
-- 明确深色模式策略。
+- 把核心设计 token 同步为 CSS variables。
 - 将常用按钮、输入框、卡片、弹窗抽象到 `src/shared/ui/`。
 - 为 `NoteTag.tone` 建立更完整的颜色映射。
 - 如果要发布桌面端，考虑本地化字体资源，减少外部网络依赖。

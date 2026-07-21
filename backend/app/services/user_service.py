@@ -34,14 +34,6 @@ def update_profile(db: Session, user: User, payload: UpdateProfileRequest) -> di
     return user.to_dict()
 
 
-def get_security(user: User) -> dict:
-    """安全设置。本期 twoFactorEnabled 恒为 false。"""
-    return {
-        "twoFactorEnabled": False,
-        "lastPasswordChangedAt": user.updated_at.isoformat() if user.updated_at else None,
-    }
-
-
 def change_password(db: Session, user: User, current_password: str, new_password: str) -> dict:
     """修改密码。"""
     if not verify_password(current_password, user.password_hash):

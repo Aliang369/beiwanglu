@@ -16,7 +16,6 @@ class User(Base):
     account: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
-    email: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     bio: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
@@ -36,7 +35,6 @@ class User(Base):
             "id": self.id,
             "account": self.account,
             "name": self.name,
-            "email": self.email,
             "bio": self.bio,
             "avatarUrl": self.avatar_url,
             "createdAt": self.created_at.isoformat() if self.created_at else None,

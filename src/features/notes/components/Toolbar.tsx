@@ -47,6 +47,8 @@ export function Toolbar({ query, onQueryChange, onRefresh, onLoginClick, onProfi
   const userMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const userMenuPopupRef = useRef<HTMLDivElement>(null)
   const userMenuInitialFocusRef = useRef<'first' | 'last'>('first')
+  /** 仅键盘打开菜单时自动聚焦菜单项，避免鼠标点击出现浏览器焦点蓝框 */
+  const userMenuShouldAutoFocusRef = useRef(false)
   const historyListId = useId()
   const userMenuId = useId()
 
@@ -129,11 +131,19 @@ export function Toolbar({ query, onQueryChange, onRefresh, onLoginClick, onProfi
   }, [])
 
   useEffect(() => {
-    if (userMenuOpen) {
-      const menuItems = userMenuPopupRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
-      const target = userMenuInitialFocusRef.current === 'last' ? menuItems?.item((menuItems?.length ?? 1) - 1) : menuItems?.item(0)
-      target?.focus()
+    if (!userMenuOpen) {
+      return
     }
+    if (!userMenuShouldAutoFocusRef.current) {
+      return
+    }
+    userMenuShouldAutoFocusRef.current = false
+    const menuItems = userMenuPopupRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    const target =
+      userMenuInitialFocusRef.current === 'last'
+        ? menuItems?.item((menuItems?.length ?? 1) - 1)
+        : menuItems?.item(0)
+    target?.focus()
   }, [userMenuOpen])
 
   async function handleRefresh() {
@@ -460,15 +470,33 @@ export function Toolbar({ query, onQueryChange, onRefresh, onLoginClick, onProfi
             <button
               ref={userMenuTriggerRef}
               type="button"
-              onClick={() => {
-                userMenuInitialFocusRef.current = 'first'
+              onClick={(event) => {
+                // detail === 0：键盘触发的 click（Enter/Space）；鼠标点击 detail >= 1
+                const fromKeyboard = event.detail === 0
+                userMenuShouldAutoFocusRef.current = fromKeyboard
+                if (fromKeyboard) {
+                  userMenuInitialFocusRef.current = 'first'
+                }
                 setUserMenuOpen((open) => !open)
               }}
               onKeyDown={(event) => {
                 if (!userMenuOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
                   event.preventDefault()
+                  userMenuShouldAutoFocusRef.current = true
                   userMenuInitialFocusRef.current = event.key === 'ArrowUp' ? 'last' : 'first'
                   setUserMenuOpen(true)
+                  return
+                }
+                // 鼠标打开后焦点可能仍在头像上：方向键再进入菜单项
+                if (userMenuOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End')) {
+                  event.preventDefault()
+                  const menuItems = Array.from(userMenuPopupRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+                  if (menuItems.length === 0) return
+                  if (event.key === 'ArrowUp' || event.key === 'End') {
+                    menuItems[menuItems.length - 1]?.focus()
+                  } else {
+                    menuItems[0]?.focus()
+                  }
                 }
               }}
               className="flex size-10 items-center justify-center overflow-hidden rounded-full border border-outline-variant/30 bg-primary-container text-on-primary transition-opacity hover:opacity-80"
@@ -488,16 +516,31 @@ export function Toolbar({ query, onQueryChange, onRefresh, onLoginClick, onProfi
                     <p className="truncate text-label-sm text-on-surface-variant">{account.account}</p>
                   </div>
                 ) : null}
-                <button type="button" role="menuitem" onClick={() => runUserMenuAction(onProfileClick)} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runUserMenuAction(onProfileClick)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low focus:outline-none focus-visible:bg-surface-container-low focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30"
+                >
                   <UserRound className="size-4" />
                   <span className="text-label-md">个人资料</span>
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setUserMenuOpen(false); onAccountSettingsClick?.() }} className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runUserMenuAction(onAccountSettingsClick)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-on-surface transition-colors hover:bg-surface-container-low focus:outline-none focus-visible:bg-surface-container-low focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30"
+                >
                   <Shield className="size-4" />
                   <span className="text-label-md">账号设置</span>
                 </button>
                 <div className="my-1 border-t border-outline-variant/30" />
-                <button type="button" role="menuitem" onClick={() => runUserMenuAction(onLogoutClick)} className="flex w-full items-center gap-3 px-4 py-2 text-left text-error transition-colors hover:bg-error-container/30">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runUserMenuAction(onLogoutClick)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-error transition-colors hover:bg-error-container/30 focus:outline-none focus-visible:bg-error-container/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-error/35"
+                >
                   <LogOut className="size-4" />
                   <span className="text-label-md">退出登录</span>
                 </button>
